@@ -1,171 +1,104 @@
-# Neuropod AI
+# Neuropod
 
-Research papers, distilled into audio.
+Turns recent arXiv papers into short narrated podcast episodes. You set a few research topics, the app pulls fresh papers in your areas, ranks them, generates a 6-9 minute audio brief grounded in the paper, and hands you an RSS feed so you can listen in any podcast app.
 
-Neuropod ranks new arXiv papers against your topics, generates a 90-second narrated brief grounded in the paper, and serves it through a clean dashboard and RSS feed. It runs end-to-end with zero API keys (demo mode), and progressively upgrades each stage as you add provider keys.
+It also has a web UI for browsing episodes, asking grounded follow-up questions about a paper, and tweaking your topics.
 
----
+The app runs without any API keys (demo mode with seeded papers and a synthesized tone for audio). Add provider keys to upgrade each stage.
 
-## Quick start
+## Tech stack
 
-```bash
-# 1. Install dependencies
+- **Backend**: Python, FastAPI, APScheduler
+- **Pipeline**: arXiv API, PyMuPDF (PDF extraction), OpenAI / Anthropic (script generation), OpenAI embeddings, ElevenLabs / OpenAI (text-to-speech)
+- **Frontend**: Next.js 16 (App Router), TypeScript, plain CSS
+- **Storage**: local JSON store (Postgres + pgvector schema included for production)
+- **Container**: Docker / docker-compose
+
+## Running it
+
+You need Python 3.11+ and Node 20+.
+
+```
+git clone https://github.com/alvinn6o/Neuropod-Research-Paper-Podcasts.git
+cd Neuropod-Research-Paper-Podcasts
+
+cp .env.example .env
 pip install -r requirements.txt
 cd frontend && npm install && cd ..
+```
 
-# 2. Configure (optional — runs in demo mode without any keys)
-cp .env.example .env
+Start the backend in one terminal:
 
-# 3. Boot
-# Terminal A — API
+```
 python -m uvicorn api.main:app --reload --port 8000
-# Terminal B — Frontend
+```
+
+Start the frontend in another:
+
+```
 cd frontend && npm run dev
 ```
 
-Open <http://localhost:3000>. The status badge in the top-right shows whether you're running `demo` or `live`.
+Open http://localhost:3000.
 
-Or with Docker: `docker-compose up`.
+Or run everything with Docker:
 
----
-
-## What you need to set up
-
-Neuropod is fully functional with **no setup**. To upgrade each stage:
-
-| Capability | Provider | Env var | Where to get it |
-|---|---|---|---|
-| **Script generation** (recommended) | Anthropic Claude | `ANTHROPIC_API_KEY` | <https://console.anthropic.com/settings/keys> |
-| Script generation (alt) | OpenAI | `OPENAI_API_KEY` | <https://platform.openai.com/api-keys> |
-| **TTS — expressive** (recommended) | ElevenLabs | `ELEVENLABS_API_KEY` | <https://elevenlabs.io/app/settings/api-keys> |
-| TTS — fast & cheap | OpenAI | `OPENAI_API_KEY` | (same key as above) |
-| Live arXiv discovery | arXiv API | `NEUROPOD_LIVE_DISCOVERY=true` | (no key — public API) |
-| Production storage | Supabase | `SUPABASE_URL`, `SUPABASE_KEY` | <https://supabase.com/dashboard> |
-
-Routing is automatic: if a key is present, that provider is used. The TTS provider preference can be overridden with `NEUROPOD_TTS_PROVIDER=elevenlabs|openai|demo`.
-
-### Minimum recommended setup
-
-For a polished daily podcast, get one of each:
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-...
-ELEVENLABS_API_KEY=...
-NEUROPOD_LIVE_DISCOVERY=true
+```
+docker-compose up
 ```
 
-That covers script writing, expressive narration, and live paper discovery. Approx cost per episode: ~$0.02 LLM + ~$0.15 TTS.
+## API keys (optional)
 
----
+The app works without any keys. To get real papers and real audio, edit `.env` and add whichever keys you have.
+
+```
+ANTHROPIC_API_KEY=         # script generation (preferred)
+OPENAI_API_KEY=            # script generation (fallback) + embeddings + TTS fallback
+ELEVENLABS_API_KEY=        # better-sounding narration
+NEUROPOD_LIVE_DISCOVERY=true   # fetch live papers from arXiv instead of the demo catalog
+```
+
+The status badge in the top right of the UI flips from "demo" to "live" when real providers are wired. If a provider call fails (bad key, rate limit, etc.) the badge shows a warning and you can hover to see the error.
+
+There's no signup, no Anthropic/OpenAI/ElevenLabs login flow inside the app — you paste keys directly into `.env`. Costs roughly land around $0.02 per script (LLM) plus $0.03 to $0.15 per episode for TTS depending on which provider you use.
 
 ## How it works
 
-```
-arXiv / Semantic Scholar  →  ranker (recency + citations + affinity)
-        ↓
-PDF extraction → section-aware chunking → embeddings
-        ↓
-Retriever (top-k) → ScriptWriter (Claude/GPT) → QA check
-        ↓
-TTS (ElevenLabs / OpenAI) → audio cache → RSS feed + dashboard
-```
+1. Pulls candidate papers from arXiv filtered to your topics and a window (default last 7 days).
+2. Scores them by recency, citation velocity, and how well they match your topics. Past listening behavior also nudges the ranking.
+3. Downloads the PDF, splits it into sections (Abstract, Methods, Results, etc.), chunks each section, and embeds the chunks.
+4. Retrieves the most relevant chunks for the paper's topic, sends them to the LLM with a structured prompt, gets back a 800-1200 word script.
+5. Runs a quick QA check, sends the script to TTS, caches the audio on disk.
+6. Episodes show up in the feed and the RSS endpoint at `/feed/<slug>`.
 
-Each stage has a real implementation (used when keys are set) and a deterministic demo fallback (used otherwise). The fallback is good enough to demo the full UX without spending a cent.
-
----
+You can ask follow-up questions on any episode page — the same retriever finds relevant chunks and shows them as citations under the answer.
 
 ## Layout
 
 ```
-api/                    FastAPI app
-  config.py             Settings (reads .env, with PAPERPOD_* legacy aliases)
-  routes/
-    episodes.py         List, get, stream audio (with disk cache)
-    feed.py             RSS XML
-    ask.py              Grounded Q&A on an episode
-    topics.py           User topic preferences
-    feedback.py         Play/pause/skip events
-    status.py           Provider health & demo/live indicator
-  storage.py            Local JSON store (DemoStore)
-
-pipeline/               The discover → script → audio pipeline
-  discover/             arXiv client (live + demo), ranker, citation enrichment
-  ingest/               PDF extraction, chunker
-  generate/             Embedder, retriever, ScriptWriter (Claude/GPT/demo), QA
-  synthesize/           TTSProvider (ElevenLabs/OpenAI/demo), audio metadata
-  orchestrator.py       Single entry point: build_demo_payload()
-
-frontend/src/
-  app/                  Next.js App Router pages: feed, explore, episode, topics, subscribe
-  components/
-    AudioPlayer         Custom player: scrub, skip, speed, keyboard shortcuts
-    EpisodeCard         Compact card with QA badge + inline play
-    ExploreView         Search + topic filter + sort
-    DeepDiveChat        Grounded Q&A with citations
-    TopicSelector       Add/remove tracked topics
-    Toast / StatusBadge System UI
+api/                FastAPI app, routes, storage, audio cache
+pipeline/
+  discover/         arXiv client, citation enrichment, ranker, affinity
+  ingest/           PDF extraction, section-aware chunking
+  generate/         Embedder, retriever, script writer, QA
+  synthesize/       TTS providers, audio post-processing
+frontend/
+  src/app/          Next.js pages
+  src/components/   UI components (player, chat, topic editor, etc.)
+db/schema.sql       Postgres + pgvector schema for production
+scripts/            CLI helpers (seed, run pipeline)
 ```
 
----
+## Keyboard shortcuts
 
-## Keyboard shortcuts (player)
+- `Space` — play / pause
+- `J` or `←` — back 15 seconds
+- `L` or `→` — forward 30 seconds
+- `⌘K` or `/` — open command palette
+- `?` — show shortcuts overlay
 
-| Key | Action |
-|---|---|
-| <kbd>Space</kbd> | Play / pause |
-| <kbd>J</kbd> / <kbd>←</kbd> | Skip back 15s |
-| <kbd>L</kbd> / <kbd>→</kbd> | Skip forward 30s |
+Click the speed indicator on the player (`1×`) to cycle through 0.85× → 1× → 1.25× → 1.5× → 1.75× → 2×.
 
-Click the speed indicator (`1×`) on the player to cycle through 1× → 1.25× → 1.5× → 1.75× → 2× → 0.85×.
+## License
 
----
-
-## API surface
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/health` | Liveness check |
-| GET | `/status` | Provider configuration + demo/live state |
-| GET | `/episodes` | List episodes (filter by `?topic=`) |
-| GET | `/episodes/{id}` | Single episode with paper + script |
-| GET | `/episodes/{id}/audio` | Stream audio (cached on disk by script hash) |
-| POST | `/episodes/{id}/ask` | Ask a grounded question (returns answer + citations) |
-| GET | `/feed/{user_slug}` | RSS XML |
-| GET/POST | `/topics` | Read/write tracked topics |
-| POST | `/feedback` | Log play/pause/skip/complete events |
-
----
-
-## Refresh demo data
-
-```bash
-python scripts/seed_demo.py
-```
-
-This re-runs the pipeline against the seeded catalog and replaces `data/demo_store.json`. Once you set a provider key and rerun, the `tts_provider` field on each episode reflects the real provider used.
-
----
-
-## Development notes
-
-- The audio route writes synthesized bytes to `data/audio_cache/<sha1>.bin` keyed by `(provider, script)`, so re-streams don't burn TTS credits.
-- The frontend is fully server-rendered for the initial pages; only the player, search, and chat are client components.
-- Environment variables accept both `NEUROPOD_*` and legacy `PAPERPOD_*` names so existing `.env` files keep working.
-- Type-check the frontend with `cd frontend && npx tsc --noEmit`.
-- Smoke-test the API with `python -c "from fastapi.testclient import TestClient; from api.main import app; print(TestClient(app).get('/episodes').json())"`.
-
----
-
-## Status
-
-| Stage | Demo | Real |
-|---|---|---|
-| Discovery | ✅ seeded catalog | ✅ arXiv API (`NEUROPOD_LIVE_DISCOVERY=true`) |
-| Citation signal | ✅ baked-in | ⏳ Semantic Scholar API |
-| PDF extraction | ✅ pre-extracted sections | ⏳ PyMuPDF + arXiv PDF fetch |
-| Embeddings | ✅ hash-based | ⏳ OpenAI `text-embedding-3-small` |
-| Script | ✅ template | ✅ Anthropic / OpenAI |
-| QA | ✅ token overlap | ⏳ second-LLM verification |
-| TTS | ✅ tone | ✅ ElevenLabs / OpenAI |
-| Storage | ✅ local JSON | ⏳ Supabase / Postgres |
-| Auth | — | ⏳ Supabase Auth |
+MIT.
