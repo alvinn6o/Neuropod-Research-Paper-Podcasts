@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+apscheduler
+feedgen
+python-dotenv
+pymupdf
+
+# Optional — enables audio post-processing (loudness + fade).
+# pydub also requires ffmpeg installed on the system.
+# pydub
