@@ -34,8 +34,8 @@ data/audio_cache/
 *.swp
 *.swo
 
-# Claude / preview
-.claude/launch.json
+# Local tooling
+.claude/
 
 # Dist / build
 dist/
