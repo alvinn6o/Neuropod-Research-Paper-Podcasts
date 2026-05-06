@@ -180,6 +180,22 @@ button {
   background: var(--surface-hover);
 }
 
+.nav-signout {
+  margin-left: 4px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 12px;
+  background: transparent;
+  cursor: pointer;
+  transition: color 80ms ease, background 80ms ease;
+}
+
+.nav-signout:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
 .kbd {
   font-family: var(--font-mono);
   font-size: 10px;

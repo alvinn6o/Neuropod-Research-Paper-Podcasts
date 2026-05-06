@@ -3,19 +3,13 @@ from __future__ import annotations
 from functools import lru_cache
 
 from .config import Settings, get_settings
-from .storage import DemoStore
+from .db import init_schema
 
 
 @lru_cache(maxsize=1)
-def get_store() -> DemoStore:
-    settings = get_settings()
-    store = DemoStore(settings.store_path)
-    store.ensure_seeded(
-        settings.default_topics,
-        settings.default_episode_count,
-        settings.discovery_window_days,
-    )
-    return store
+def ensure_db_ready() -> bool:
+    init_schema()
+    return True
 
 
 def get_app_settings() -> Settings:

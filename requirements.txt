@@ -1,10 +1,13 @@
 fastapi
 uvicorn[standard]
 apscheduler
-feedgen
 python-dotenv
 pymupdf
+cryptography
+psycopg[binary,pool]
+PyJWT[crypto]
 
-# Optional — enables audio post-processing (loudness + fade).
-# pydub also requires ffmpeg installed on the system.
-# pydub
+# Optional — production deploys
+# mangum            # Lambda adapter
+# boto3             # S3 + ECS clients
+# pydub             # audio post-processing (also needs ffmpeg installed)

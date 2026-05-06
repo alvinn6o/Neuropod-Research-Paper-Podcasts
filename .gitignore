@@ -24,8 +24,8 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Local data (regenerable)
-data/demo_store.json
-data/audio_cache/
+data/
+!data/.gitkeep
 
 # Editors / OS
 .DS_Store

@@ -1,43 +1,50 @@
+'use client'
+
+import { useEffect, useState } from "react"
+
 import { getStatus } from "@/lib/api"
+import { StatusResponse } from "@/lib/types"
 
-export async function StatusBadge() {
-  let live = false
-  let label = "demo"
-  let title = ""
-  let hasFailure = false
+export function StatusBadge() {
+  const [status, setStatus] = useState<StatusResponse | null>(null)
 
-  try {
-    const status = await getStatus()
-    live = status.providers.llm !== "demo" && status.providers.tts !== "demo"
-    label = live ? "live" : "demo"
+  useEffect(() => {
+    getStatus().then(setStatus).catch(() => undefined)
+    const interval = setInterval(() => {
+      getStatus().then(setStatus).catch(() => undefined)
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [])
 
-    const failures = Object.entries(status.provider_calls || {})
-      .filter(([, v]) => v && v.ok === false)
-      .map(([k, v]) => `${k}: ${(v.error || "").slice(0, 80)}`)
+  if (!status) return null
 
-    hasFailure = failures.length > 0
+  const providers = status.providers
+  const live = providers && providers.llm !== "demo" && providers.tts !== "demo"
+  const failures = Object.entries(status.provider_calls || {})
+    .filter(([, v]) => v && v.ok === false)
+    .map(([k, v]) => `${k}: ${(v.error || "").slice(0, 80)}`)
+  const hasFailure = failures.length > 0
+  const label = !status.authenticated
+    ? "guest"
+    : live
+      ? "live"
+      : "demo"
 
-    const lines = [
-      `LLM: ${status.providers.llm}`,
-      `TTS: ${status.providers.tts}`,
-      `Embed: ${status.providers.embedder}`,
-      `Window: ${status.discovery_window_days}d`,
-    ]
-    if (failures.length) {
-      lines.push("")
-      lines.push("Recent failures:")
-      lines.push(...failures)
-    }
-    title = lines.join("\n")
-  } catch {
-    label = "offline"
-    title = "API unreachable"
+  const lines = [
+    `Auth: ${status.auth_mode}`,
+    providers ? `LLM: ${providers.llm}` : "LLM: —",
+    providers ? `TTS: ${providers.tts}` : "TTS: —",
+    providers ? `Embed: ${providers.embedder}` : "Embed: —",
+    `Window: ${status.discovery_window_days}d`,
+  ]
+  if (failures.length) {
+    lines.push("", "Recent failures:", ...failures)
   }
 
   const dotClass = hasFailure ? "signal-dot warn" : live ? "signal-dot" : "signal-dot warn"
 
   return (
-    <div className="signal-bar" title={title}>
+    <div className="signal-bar" title={lines.join("\n")}>
       <span className={dotClass} />
       {hasFailure ? `${label} ⚠` : label}
     </div>

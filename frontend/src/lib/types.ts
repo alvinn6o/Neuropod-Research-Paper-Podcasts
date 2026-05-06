@@ -19,8 +19,9 @@ export type Episode = {
   score: number
   duration_secs: number
   tts_provider: string
+  llm_provider: string
   qa_status: string
-  created_at: string
+  created_at: string | null
   audio_url: string
   script?: string | null
   paper: Paper
@@ -37,27 +38,35 @@ export type TopicResponse = {
 
 export type AskResponse = {
   answer: string
-  citations: Array<{
-    section: string
-    excerpt: string
-  }>
+  citations: Array<{ section: string; excerpt: string }>
+}
+
+export type UserResponse = {
+  id: string
+  email: string
+  feed_slug: string
+  display_name?: string | null
+  keys: Record<string, string>
+}
+
+export type AuthSession = {
+  token: string
+  user: UserResponse
 }
 
 export type StatusResponse = {
-  demo_mode: boolean
-  providers: {
-    llm: string
-    tts: string
-    embedder: string
-    openai: boolean
-    anthropic: boolean
-    elevenlabs: boolean
-  }
-  topics: string[]
-  last_pipeline_run: string | null
-  scheduler_enabled: boolean
+  auth_mode: string
+  authenticated: boolean
+  audio_backend: string
   live_discovery: boolean
   discovery_window_days: number
+  scheduler_enabled: boolean
+  require_user_keys: boolean
+  user?: { feed_slug: string; email: string }
+  topics?: string[]
+  keys?: Record<string, string>
+  providers?: { llm: string; tts: string; embedder: string }
+  last_job?: JobResponse | null
   provider_calls: Record<string, {
     ok: boolean
     at: string
@@ -65,4 +74,17 @@ export type StatusResponse = {
     error?: string | null
     status?: number | null
   }>
+}
+
+export type JobResponse = {
+  id: string
+  status: "queued" | "running" | "done" | "error" | string
+  window_days: number
+  topics: string[]
+  episode_count: number
+  created_at: string | null
+  started_at: string | null
+  finished_at: string | null
+  error: string | null
+  result_count: number
 }

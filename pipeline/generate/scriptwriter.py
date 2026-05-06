@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from typing import Optional
 
 from .._http import ProviderError, post_json
 from ..models import PaperCandidate
@@ -24,9 +25,20 @@ SYSTEM_PROMPT = (
 
 
 class ScriptWriter:
-    def __init__(self) -> None:
-        self.anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-        self.openai_key = os.getenv("OPENAI_API_KEY", "")
+    def __init__(
+        self,
+        *,
+        keys: Optional[dict[str, str]] = None,
+        require_user_keys: bool = False,
+    ) -> None:
+        keys = keys or {}
+        if require_user_keys:
+            self.anthropic_key = keys.get("anthropic", "")
+            self.openai_key = keys.get("openai", "")
+        else:
+            # local/dev fallback: env if no per-user key given
+            self.anthropic_key = keys.get("anthropic") or os.getenv("ANTHROPIC_API_KEY", "")
+            self.openai_key = keys.get("openai") or os.getenv("OPENAI_API_KEY", "")
         self.provider = os.getenv("NEUROPOD_LLM_PROVIDER", "auto").lower()
 
     def write(
@@ -35,7 +47,6 @@ class ScriptWriter:
         retrieved_chunks: list[dict],
         audience_topics: list[str],
     ) -> tuple[str, str]:
-        """Returns (script, provider_label_used)."""
         prompt = self._build_prompt(candidate, retrieved_chunks, audience_topics)
 
         if self.provider in {"anthropic", "auto"} and self.anthropic_key:

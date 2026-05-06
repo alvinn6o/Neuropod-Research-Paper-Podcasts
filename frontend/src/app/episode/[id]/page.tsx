@@ -1,28 +1,44 @@
-import Link from "next/link"
+'use client'
 
+import Link from "next/link"
+import { use, useEffect, useState } from "react"
+
+import { AuthGuard } from "@/components/AuthGuard"
 import { DeepDiveChat } from "@/components/DeepDiveChat"
 import { PlayButton } from "@/components/PlayButton"
 import { getEpisode } from "@/lib/api"
 import { splitScript } from "@/lib/script"
+import { Episode } from "@/lib/types"
 
-type Props = {
-  params: Promise<{
-    id: string
-  }>
+type Props = { params: Promise<{ id: string }> }
+
+export default function EpisodePage({ params }: Props) {
+  const { id } = use(params)
+  return (
+    <AuthGuard requireKeys>
+      {() => <EpisodeView id={id} />}
+    </AuthGuard>
+  )
 }
 
-export default async function EpisodePage({ params }: Props) {
-  const { id } = await params
-  const episode = await getEpisode(id)
+function EpisodeView({ id }: { id: string }) {
+  const [episode, setEpisode] = useState<Episode | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    getEpisode(id).then(setEpisode).catch((err) => setError(err.message))
+  }, [id])
+
+  if (error) return <div className="empty-state"><h3>Couldn&apos;t load episode</h3><p>{error}</p></div>
+  if (!episode) return <div className="card"><div className="skeleton" style={{ height: 200 }} /></div>
+
   const minutes = Math.max(1, Math.round(episode.duration_secs / 60))
   const verified = episode.qa_status === "verified"
   const paragraphs = splitScript(episode.script ?? "")
 
   return (
     <div className="stack-gap">
-      <Link className="back-link" href="/">
-        ← Back
-      </Link>
+      <Link className="back-link" href="/">← Back</Link>
 
       <section className="detail-grid">
         <div className="card detail-card">
@@ -50,12 +66,8 @@ export default async function EpisodePage({ params }: Props) {
           <div className="row-between">
             <PlayButton episode={episode} />
             <div style={{ display: "flex", gap: 8 }}>
-              <a className="button button-secondary" href={episode.paper.pdf_url} rel="noreferrer" target="_blank">
-                PDF
-              </a>
-              <a className="button button-ghost" href={episode.audio_url} rel="noreferrer" target="_blank">
-                Audio
-              </a>
+              <a className="button button-secondary" href={episode.paper.pdf_url} rel="noreferrer" target="_blank">PDF</a>
+              <a className="button button-ghost" href={episode.audio_url} rel="noreferrer" target="_blank">Audio</a>
             </div>
           </div>
         </div>
@@ -66,9 +78,7 @@ export default async function EpisodePage({ params }: Props) {
           <div className="divider" />
           <span className="label">Categories</span>
           <div className="tag-list">
-            {episode.paper.categories.map((cat) => (
-              <span className="pill" key={cat}>{cat}</span>
-            ))}
+            {episode.paper.categories.map((cat) => (<span className="pill" key={cat}>{cat}</span>))}
           </div>
           <div className="divider" />
           <div className="row-between">
@@ -87,9 +97,7 @@ export default async function EpisodePage({ params }: Props) {
         <div className="script-body">
           {paragraphs.length === 0 ? (
             <p className="meta-text">No script available.</p>
-          ) : (
-            paragraphs.map((para, idx) => <p key={idx}>{para}</p>)
-          )}
+          ) : paragraphs.map((p, i) => <p key={i}>{p}</p>)}
         </div>
       </section>
 

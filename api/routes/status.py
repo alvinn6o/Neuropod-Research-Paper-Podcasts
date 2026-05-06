@@ -1,51 +1,42 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from pipeline.provider_status import snapshot
-from pipeline.synthesize.tts import TTSProvider
 
-from ..config import Settings, get_settings
-from ..dependencies import get_store
-from ..storage import DemoStore
+from .. import keys_repo, store_db
+from ..auth import AuthUser, OptionalUser
+from ..config import get_settings
 
 router = APIRouter(prefix="/status", tags=["status"])
 
 
 @router.get("")
-def get_status(
-    settings: Settings = Depends(get_settings),
-    store: DemoStore = Depends(get_store),
-) -> dict:
-    meta = store.get_meta()
-    tts = TTSProvider().provider_name
-
-    if settings.has_anthropic:
-        llm = "anthropic"
-    elif settings.has_openai:
-        llm = "openai"
-    else:
-        llm = "demo"
-
-    if settings.has_openai and settings.embedder_choice != "demo":
-        embedder = "openai"
-    else:
-        embedder = "demo"
-
-    return {
-        "demo_mode": settings.demo_mode,
-        "providers": {
-            "llm": llm,
-            "tts": tts,
-            "embedder": embedder,
-            "openai": settings.has_openai,
-            "anthropic": settings.has_anthropic,
-            "elevenlabs": settings.has_elevenlabs,
-        },
-        "topics": store.get_topics(),
-        "last_pipeline_run": meta.get("last_pipeline_run"),
-        "scheduler_enabled": settings.enable_scheduler,
+def get_status(user: AuthUser | None = OptionalUser) -> dict:
+    settings = get_settings()
+    out: dict = {
+        "auth_mode": settings.auth_mode,
         "live_discovery": settings.live_discovery,
         "discovery_window_days": settings.discovery_window_days,
+        "audio_backend": settings.audio_backend,
+        "scheduler_enabled": settings.enable_scheduler,
+        "require_user_keys": settings.require_user_keys,
         "provider_calls": snapshot(),
     }
+
+    if not user:
+        out["authenticated"] = False
+        return out
+
+    masked = keys_repo.list_masked(user.id)
+    out["authenticated"] = True
+    out["user"] = {"feed_slug": user.feed_slug, "email": user.email}
+    out["topics"] = store_db.get_topics(user.id)
+    out["keys"] = masked
+    out["providers"] = {
+        "llm": "anthropic" if "anthropic" in masked else ("openai" if "openai" in masked else "demo"),
+        "tts": "elevenlabs" if "elevenlabs" in masked else ("openai" if "openai" in masked else "demo"),
+        "embedder": "openai" if "openai" in masked else "demo",
+    }
+    out["last_job"] = store_db.latest_job(user.id)
+    return out

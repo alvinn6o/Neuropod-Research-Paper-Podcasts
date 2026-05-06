@@ -1,22 +1,19 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from ..dependencies import get_store
+from .. import store_db
+from ..auth import AuthUser, CurrentUser
 from ..models import TopicResponse, TopicUpdateRequest
-from ..storage import DemoStore
 
 router = APIRouter(prefix="/topics", tags=["topics"])
 
 
 @router.get("", response_model=TopicResponse)
-def get_topics(store: DemoStore = Depends(get_store)) -> TopicResponse:
-    return TopicResponse(topics=store.get_topics())
+def get_topics(user: AuthUser = CurrentUser) -> TopicResponse:
+    return TopicResponse(topics=store_db.get_topics(user.id))
 
 
 @router.post("", response_model=TopicResponse)
-def update_topics(
-    payload: TopicUpdateRequest,
-    store: DemoStore = Depends(get_store),
-) -> TopicResponse:
-    return TopicResponse(topics=store.set_topics(payload.topics))
+def update_topics(payload: TopicUpdateRequest, user: AuthUser = CurrentUser) -> TopicResponse:
+    return TopicResponse(topics=store_db.set_topics(user.id, payload.topics))

@@ -1,33 +1,28 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from uuid import uuid4
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
-from ..dependencies import get_store
+from .. import store_db
+from ..auth import AuthUser, CurrentUser
 from ..models import FeedbackRequest, FeedbackResponse
-from ..storage import DemoStore
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 
 
 @router.post("", response_model=FeedbackResponse)
-def log_feedback(
-    payload: FeedbackRequest,
-    store: DemoStore = Depends(get_store),
-) -> FeedbackResponse:
-    episode = store.get_episode(payload.episode_id)
+def log_feedback(payload: FeedbackRequest, user: AuthUser = CurrentUser) -> FeedbackResponse:
+    try:
+        episode_id = uuid.UUID(payload.episode_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid episode id")
+
+    episode = store_db.get_episode(user.id, episode_id)
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
 
-    total_events = store.add_feedback(
-        {
-            "id": str(uuid4()),
-            "episode_id": payload.episode_id,
-            "event_type": payload.event_type,
-            "position_secs": payload.position_secs,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
+    total = store_db.add_feedback(
+        user.id, episode_id, payload.event_type, payload.position_secs
     )
-    return FeedbackResponse(total_events=total_events)
+    return FeedbackResponse(total_events=total)

@@ -1,17 +1,44 @@
+'use client'
+
+import { useEffect, useState } from "react"
+
+import { AuthGuard } from "@/components/AuthGuard"
 import { EpisodeCard } from "@/components/EpisodeCard"
 import { RefreshButton } from "@/components/RefreshButton"
 import { getEpisodes, getStatus } from "@/lib/api"
+import { Episode, StatusResponse } from "@/lib/types"
 import { relativeTime } from "@/lib/time"
 
-export default async function HomePage() {
-  const [feed, status] = await Promise.all([
-    getEpisodes(),
-    getStatus().catch(() => null)
-  ])
+export default function HomePage() {
+  return (
+    <AuthGuard requireKeys>
+      {() => <FeedView />}
+    </AuthGuard>
+  )
+}
 
-  const totalDuration = feed.items.reduce((sum, ep) => sum + ep.duration_secs, 0)
-  const verifiedCount = feed.items.filter((ep) => ep.qa_status === "verified").length
-  const lastRun = status?.last_pipeline_run ? relativeTime(status.last_pipeline_run) : null
+function FeedView() {
+  const [items, setItems] = useState<Episode[]>([])
+  const [topics, setTopics] = useState<string[]>([])
+  const [status, setStatus] = useState<StatusResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([getEpisodes(), getStatus().catch(() => null)])
+      .then(([feed, st]) => {
+        if (cancelled) return
+        setItems(feed.items)
+        setTopics(feed.topics)
+        setStatus(st as StatusResponse | null)
+      })
+      .finally(() => !cancelled && setLoading(false))
+    return () => { cancelled = true }
+  }, [])
+
+  const totalDuration = items.reduce((sum, ep) => sum + ep.duration_secs, 0)
+  const verifiedCount = items.filter((ep) => ep.qa_status === "verified").length
+  const lastRun = status?.last_job?.finished_at ? relativeTime(status.last_job.finished_at) : null
 
   return (
     <div className="stack-gap">
@@ -27,7 +54,7 @@ export default async function HomePage() {
 
       <div className="stat-row">
         <div className="stat">
-          <div className="stat-value">{feed.items.length}</div>
+          <div className="stat-value">{items.length}</div>
           <span className="stat-label">Episodes</span>
         </div>
         <div className="stat">
@@ -35,11 +62,11 @@ export default async function HomePage() {
           <span className="stat-label">Total runtime</span>
         </div>
         <div className="stat">
-          <div className="stat-value">{verifiedCount}/{feed.items.length}</div>
+          <div className="stat-value">{verifiedCount}/{items.length || "·"}</div>
           <span className="stat-label">QA verified</span>
         </div>
         <div className="stat">
-          <div className="stat-value">{feed.topics.length}</div>
+          <div className="stat-value">{topics.length}</div>
           <span className="stat-label">Topics tracked</span>
         </div>
       </div>
@@ -52,14 +79,24 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {feed.items.length === 0 ? (
+        {loading ? (
+          <div className="episode-grid" style={{ marginTop: 16 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="card" style={{ height: 160 }}>
+                <div className="skeleton" style={{ height: 14, width: "40%" }} />
+                <div className="skeleton" style={{ height: 18, width: "85%", marginTop: 12 }} />
+                <div className="skeleton" style={{ height: 14, width: "92%", marginTop: 8 }} />
+              </div>
+            ))}
+          </div>
+        ) : items.length === 0 ? (
           <div className="empty-state">
             <h3>No episodes yet</h3>
-            <p>Click Refresh feed to run the pipeline.</p>
+            <p>Click Refresh feed to run the pipeline with your topics.</p>
           </div>
         ) : (
           <div className="episode-grid" style={{ marginTop: 16 }}>
-            {feed.items.map((episode) => (
+            {items.map((episode) => (
               <EpisodeCard episode={episode} key={episode.id} />
             ))}
           </div>

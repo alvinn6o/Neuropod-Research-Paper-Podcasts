@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Optional
 from uuid import uuid4
 
 from .discover.arxiv_client import ArxivClient
@@ -21,20 +22,31 @@ def build_demo_payload(
     topics: list[str],
     num_episodes: int,
     window_days: int = 7,
-    feedback_events: list[dict] | None = None,
-    prior_episodes: list[dict] | None = None,
+    feedback_events: Optional[list[dict]] = None,
+    prior_episodes: Optional[list[dict]] = None,
+    keys: Optional[dict[str, str]] = None,
+    require_user_keys: bool = False,
 ) -> dict:
+    """Run the full discover→script→audio pipeline.
+
+    `keys` is a {provider: plaintext} dict — typically the user's BYOK keys
+    decrypted at request time. `require_user_keys=True` disables env fallback,
+    so a user with no keys can never accidentally call providers on the
+    operator's bill.
+    """
     from .discover.affinity import compute_affinity
+
+    keys = keys or {}
     discovery = ArxivClient()
     metadata = SemanticScholarClient()
     extractor = PDFExtractor()
     chunker = SectionAwareChunker()
-    embedder = get_embedder()
+    embedder = get_embedder(keys=keys, require_user_keys=require_user_keys)
     retriever = Retriever(embedder=embedder)
-    writer = ScriptWriter()
+    writer = ScriptWriter(keys=keys, require_user_keys=require_user_keys)
     checker = QAChecker()
     audio = AudioProcessor()
-    tts = TTSProvider()
+    tts = TTSProvider(keys=keys, require_user_keys=require_user_keys)
 
     affinity_scores = compute_affinity(feedback_events or [], prior_episodes or [])
 
@@ -95,7 +107,9 @@ def build_demo_payload(
             tts_provider=tts.provider_name,
             created_at=generated_at,
         )
-        episodes.append(episode.to_dict())
+        episode_dict = episode.to_dict()
+        episode_dict["llm_provider"] = llm_label
+        episodes.append(episode_dict)
 
     return {
         "generated_at": generated_at,

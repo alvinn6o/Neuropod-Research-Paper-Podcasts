@@ -6,6 +6,7 @@ import math
 import os
 import re
 import time
+from typing import Optional
 
 from .._http import ProviderError, post_json
 from ..models import PaperChunk
@@ -15,8 +16,6 @@ logger = logging.getLogger("neuropod.embed")
 
 
 class HashEmbedder:
-    """Deterministic hash-based fallback (48 dims). Used when no real key is set."""
-
     def __init__(self, dimensions: int = 48) -> None:
         self.dimensions = dimensions
 
@@ -34,13 +33,11 @@ class HashEmbedder:
             digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
             index = int(digest[:8], 16) % self.dimensions
             vector[index] += 1.0
-        norm = math.sqrt(sum(value * value for value in vector)) or 1.0
-        return [value / norm for value in vector]
+        norm = math.sqrt(sum(v * v for v in vector)) or 1.0
+        return [v / norm for v in vector]
 
 
 class OpenAIEmbedder:
-    """Real OpenAI embeddings (text-embedding-3-small, 1536 dims)."""
-
     def __init__(self, api_key: str, model: str = "text-embedding-3-small", batch: int = 64) -> None:
         self.api_key = api_key
         self.model = model
@@ -88,8 +85,16 @@ class OpenAIEmbedder:
         return [row["embedding"] for row in result["data"]]
 
 
-def get_embedder() -> HashEmbedder | OpenAIEmbedder:
-    key = os.getenv("OPENAI_API_KEY", "")
+def get_embedder(
+    *,
+    keys: Optional[dict[str, str]] = None,
+    require_user_keys: bool = False,
+) -> HashEmbedder | OpenAIEmbedder:
+    keys = keys or {}
+    if require_user_keys:
+        key = keys.get("openai", "")
+    else:
+        key = keys.get("openai") or os.getenv("OPENAI_API_KEY", "")
     if not key:
         return HashEmbedder()
     if os.getenv("NEUROPOD_EMBEDDER", "auto").lower() == "demo":

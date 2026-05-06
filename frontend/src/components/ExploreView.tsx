@@ -50,7 +50,7 @@ export function ExploreView({ episodes, topics }: Props) {
           return b.duration_secs - a.duration_secs
         case "recent":
         default:
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
       }
     })
 

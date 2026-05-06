@@ -1,84 +1,61 @@
 from __future__ import annotations
 
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 from email.utils import format_datetime
 from xml.sax.saxutils import escape
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 
-from ..dependencies import get_store
-from ..storage import DemoStore
+from .. import audio_store, store_db
+from ..db import get_user_by_slug
 
 router = APIRouter(prefix="/feed", tags=["feed"])
 
 
-def _build_manual_feed(request: Request, episodes: list[dict], user_slug: str) -> str:
-    base = request.base_url._url.rstrip("/")
-    items = []
-    for episode in episodes:
-        pub_date = format_datetime(datetime.fromisoformat(episode["created_at"].replace("Z", "+00:00")))
-        audio_url = f"{base}/episodes/{episode['id']}/audio"
-        page_url = f"{base}/episodes/{episode['id']}"
-        description = escape(episode["description"])
-        title = escape(episode["title"])
-        items.append(
-            f"""
-            <item>
-              <title>{title}</title>
-              <link>{page_url}</link>
-              <guid>{episode['id']}</guid>
-              <description>{description}</description>
-              <pubDate>{pub_date}</pubDate>
-              <enclosure url="{audio_url}" type="audio/mpeg" length="0" />
-            </item>
-            """.strip()
-        )
+def _episode_to_item(request: Request, episode: dict) -> str:
+    base = str(request.base_url).rstrip("/")
+    audio_url = audio_store.url_for(episode.get("audio_key") or "") or \
+        f"{base}/episodes/{episode['id']}/audio?key={episode.get('audio_key', '')}"
+    page_url = f"{base}/episodes/{episode['id']}"
 
-    return f"""<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
-  <channel>
-    <title>Neuropod — {escape(user_slug)}</title>
-    <link>{base}</link>
-    <description>Daily research papers, distilled into audio.</description>
-    {''.join(items)}
-  </channel>
-</rss>
-"""
+    created = episode.get("created_at") or datetime.now(timezone.utc).isoformat()
+    try:
+        pub_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+    except Exception:
+        pub_dt = datetime.now(timezone.utc)
+    pub_date = format_datetime(pub_dt)
+
+    return f"""
+        <item>
+          <title>{escape(episode['title'])}</title>
+          <link>{page_url}</link>
+          <guid isPermaLink="false">{episode['id']}</guid>
+          <description>{escape(episode['description'])}</description>
+          <pubDate>{pub_date}</pubDate>
+          <enclosure url="{escape(audio_url)}" type="{escape(episode.get('audio_mime', 'audio/mpeg'))}" length="0" />
+        </item>""".strip()
 
 
 @router.get("/{user_slug}")
-def get_feed(
-    user_slug: str,
-    request: Request,
-    store: DemoStore = Depends(get_store),
-) -> Response:
-    episodes = store.list_episodes(limit=25)
+def get_feed(user_slug: str, request: Request) -> Response:
+    user = get_user_by_slug(user_slug)
+    if not user:
+        raise HTTPException(status_code=404, detail="feed not found")
 
-    try:
-        from feedgen.feed import FeedGenerator
+    episodes = store_db.list_episodes(uuid.UUID(str(user["id"])), limit=50)
+    base = str(request.base_url).rstrip("/")
+    title = f"Neuropod — {escape(user.get('display_name') or user_slug)}"
+    items = "\n".join(_episode_to_item(request, ep) for ep in episodes)
 
-        fg = FeedGenerator()
-        fg.title(f"Neuropod — {user_slug}")
-        fg.link(href=str(request.base_url).rstrip("/"), rel="alternate")
-        fg.description("Daily research papers, distilled into audio.")
-        fg.language("en")
-
-        for episode in episodes:
-            entry = fg.add_entry()
-            entry.id(episode["id"])
-            entry.title(episode["title"])
-            entry.description(episode["description"])
-            entry.pubDate(datetime.fromisoformat(episode["created_at"].replace("Z", "+00:00")))
-            entry.enclosure(
-                str(request.base_url).rstrip("/") + f"/episodes/{episode['id']}/audio",
-                0,
-                "audio/mpeg",
-            )
-            entry.link(href=str(request.base_url).rstrip("/") + f"/episodes/{episode['id']}")
-
-        return Response(content=fg.rss_str(pretty=True), media_type="application/rss+xml")
-    except Exception:
-        return Response(
-            content=_build_manual_feed(request, episodes, user_slug),
-            media_type="application/rss+xml",
-        )
+    body = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>{title}</title>
+    <link>{base}</link>
+    <description>Research papers, distilled into audio.</description>
+    <language>en-us</language>
+    {items}
+  </channel>
+</rss>"""
+    return Response(content=body, media_type="application/rss+xml; charset=utf-8")

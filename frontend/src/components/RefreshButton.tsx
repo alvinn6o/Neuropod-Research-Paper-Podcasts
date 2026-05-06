@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
-import { getPipelineState, runPipeline } from "@/lib/api"
+import { getPipelineJob, runPipeline } from "@/lib/api"
 import { emitToast } from "@/components/Toast"
 
 const WINDOWS = [
   { days: 1, label: "1d" },
   { days: 3, label: "3d" },
   { days: 7, label: "1w" },
-  { days: 30, label: "1mo" }
+  { days: 30, label: "1mo" },
 ]
 
 const STORAGE_KEY = "neuropod-window-days"
@@ -41,29 +41,26 @@ export function RefreshButton() {
     if (running) return
     setRunning(true)
     try {
-      const result = await runPipeline(windowDays)
-      if (!result.queued && result.running) {
-        emitToast("Pipeline already running", "info")
-      } else {
-        emitToast(`Generating from last ${windowDays}d...`, "info")
-      }
+      const job = await runPipeline(windowDays)
+      emitToast(`Generating from last ${windowDays}d…`, "info")
 
       pollRef.current = setInterval(async () => {
         try {
-          const state = await getPipelineState()
-          if (!state.running) {
+          const next = await getPipelineJob(job.id)
+          if (next.status === "done" || next.status === "error") {
             if (pollRef.current) clearInterval(pollRef.current)
             pollRef.current = null
             setRunning(false)
-            if (state.error) {
-              emitToast(`Pipeline failed: ${state.error}`, "error")
+            if (next.status === "error") {
+              emitToast(`Pipeline failed: ${next.error || "unknown error"}`, "error")
             } else {
-              emitToast(`Generated ${state.last_count} episode${state.last_count === 1 ? "" : "s"}`, "success")
+              emitToast(`Generated ${next.result_count} episode${next.result_count === 1 ? "" : "s"}`, "success")
               router.refresh()
+              window.location.reload()
             }
           }
         } catch {
-          // ignore
+          // ignore transient
         }
       }, 1500)
     } catch (err) {
@@ -103,7 +100,7 @@ export function RefreshButton() {
           <polyline points="1 20 1 14 7 14" />
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
         </svg>
-        {running ? "Generating..." : "Refresh feed"}
+        {running ? "Generating…" : "Refresh feed"}
       </button>
     </div>
   )

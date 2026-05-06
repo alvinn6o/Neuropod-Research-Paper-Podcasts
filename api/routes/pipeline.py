@@ -2,76 +2,96 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid
 from datetime import datetime, timezone
-from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
-from ..config import Settings, get_settings
-from ..dependencies import get_store
-from ..storage import DemoStore
+from .. import store_db
+from ..auth import AuthUser, CurrentUser
+from ..config import get_settings
+from ..models import JobResponse
+from ..pipeline_runner import run_for_user
 
 logger = logging.getLogger("neuropod.pipeline")
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
-_state_lock = threading.Lock()
-_state: dict[str, Any] = {
-    "running": False,
-    "started_at": None,
-    "completed_at": None,
-    "error": None,
-    "last_error": None,
-    "last_count": 0,
-    "window_days": None,
-}
+_active_jobs: set[uuid.UUID] = set()
+_active_lock = threading.Lock()
 
 
-def _set(**kwargs: Any) -> None:
-    with _state_lock:
-        _state.update(kwargs)
-
-
-def _run_pipeline(store: DemoStore, topics: list[str], count: int, window_days: int) -> None:
-    _set(running=True, started_at=datetime.now(timezone.utc).isoformat(), error=None, window_days=window_days)
+def _run_job(job_id: uuid.UUID, user_id: uuid.UUID, topics: list[str], episode_count: int, window: int) -> None:
+    with _active_lock:
+        _active_jobs.add(job_id)
+    store_db.update_job(job_id, status="running", started_at=True)
     try:
-        result = store.run_pipeline(topics=topics, episode_count=count, window_days=window_days)
-        _set(
-            running=False,
-            completed_at=datetime.now(timezone.utc).isoformat(),
-            last_count=len(result.get("episodes", [])),
-            last_error=None,
+        result = run_for_user(
+            user_id,
+            topics=topics,
+            episode_count=episode_count,
+            window_days=window,
+            require_user_keys=get_settings().require_user_keys,
+        )
+        store_db.update_job(
+            job_id,
+            status="done",
+            finished_at=True,
+            result_count=result["result_count"],
         )
     except Exception as exc:
-        message = str(exc)
-        logger.exception("pipeline run failed")
-        _set(
-            running=False,
-            completed_at=datetime.now(timezone.utc).isoformat(),
-            error=message,
-            last_error=message,
-        )
+        logger.exception("pipeline job %s failed", job_id)
+        store_db.update_job(job_id, status="error", finished_at=True, error=str(exc)[:500])
+    finally:
+        with _active_lock:
+            _active_jobs.discard(job_id)
 
 
-@router.post("/run")
+@router.post("/run", response_model=JobResponse)
 def trigger_run(
     background: BackgroundTasks,
-    window: int | None = Query(default=None, ge=1, le=365, description="Discovery window in days"),
-    store: DemoStore = Depends(get_store),
-    settings: Settings = Depends(get_settings),
-) -> dict[str, Any]:
-    with _state_lock:
-        already_running = _state["running"]
-    if already_running:
-        return {"queued": False, "running": True, "state": dict(_state)}
+    window: int | None = Query(default=None, ge=1, le=365),
+    user: AuthUser = CurrentUser,
+) -> JobResponse:
+    settings = get_settings()
+    topics = store_db.get_topics(user.id) or settings.default_topics
+    if not topics:
+        raise HTTPException(status_code=400, detail="add at least one topic before running")
 
-    topics = store.get_topics() or settings.default_topics
-    window_days = window if window is not None else settings.discovery_window_days
-    background.add_task(_run_pipeline, store, topics, settings.default_episode_count, window_days)
-    return {"queued": True, "running": True, "window_days": window_days}
+    _, allowed = store_db.increment_rate_limit(
+        user.id, "pipeline_run", daily_max=settings.daily_pipeline_limit
+    )
+    if not allowed:
+        raise HTTPException(status_code=429, detail="daily pipeline limit reached")
+
+    window_days = window or settings.discovery_window_days
+    job_id = store_db.create_job(
+        user.id,
+        window_days=window_days,
+        topics=topics,
+        episode_count=settings.default_episode_count,
+    )
+    background.add_task(_run_job, job_id, user.id, topics, settings.default_episode_count, window_days)
+
+    job = store_db.get_job(job_id)
+    return JobResponse(**job)  # type: ignore[arg-type]
 
 
-@router.get("/state")
-def get_state() -> dict[str, Any]:
-    with _state_lock:
-        return dict(_state)
+@router.get("/state", response_model=JobResponse | None)
+def get_latest_state(user: AuthUser = CurrentUser):
+    latest = store_db.latest_job(user.id)
+    if not latest:
+        return None
+    return JobResponse(**latest)
+
+
+@router.get("/jobs/{job_id}", response_model=JobResponse)
+def get_job(job_id: str, user: AuthUser = CurrentUser) -> JobResponse:
+    try:
+        jid = uuid.UUID(job_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid job id")
+    job = store_db.get_job(jid)
+    if not job or str(job.get("user_id")) != str(user.id):
+        raise HTTPException(status_code=404, detail="job not found")
+    return JobResponse(**job)

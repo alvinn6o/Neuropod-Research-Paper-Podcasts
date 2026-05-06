@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+
+# ----- Papers / episodes -----
 
 class PaperResponse(BaseModel):
     id: str
@@ -26,17 +28,20 @@ class EpisodeResponse(BaseModel):
     score: float
     duration_secs: int
     tts_provider: str
+    llm_provider: str = "demo"
     qa_status: str
-    created_at: str
+    created_at: Optional[str] = None
     audio_url: str
     paper: PaperResponse
-    script: str | None = None
+    script: Optional[str] = None
 
 
 class EpisodeListResponse(BaseModel):
     items: list[EpisodeResponse]
     topics: list[str]
 
+
+# ----- Topics / feedback / ask -----
 
 class TopicUpdateRequest(BaseModel):
     topics: list[str] = Field(default_factory=list)
@@ -69,3 +74,45 @@ class FeedbackRequest(BaseModel):
 class FeedbackResponse(BaseModel):
     ok: bool = True
     total_events: int
+
+
+# ----- Auth + me -----
+
+class StubLoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=200, pattern=r".+@.+\..+")
+
+
+class AuthSession(BaseModel):
+    token: str
+    user: "MeResponse"
+
+
+class MeResponse(BaseModel):
+    id: str
+    email: str
+    feed_slug: str
+    display_name: Optional[str] = None
+    keys: dict[str, str] = Field(default_factory=dict)  # provider -> hint
+
+
+class KeyUpdateRequest(BaseModel):
+    provider: Literal["openai", "anthropic", "elevenlabs"]
+    api_key: str = Field(min_length=8, max_length=400)
+
+
+# ----- Pipeline jobs -----
+
+class JobResponse(BaseModel):
+    id: str
+    status: str
+    window_days: int
+    topics: list[str]
+    episode_count: int
+    created_at: Optional[str]
+    started_at: Optional[str]
+    finished_at: Optional[str]
+    error: Optional[str]
+    result_count: int
+
+
+AuthSession.model_rebuild()
