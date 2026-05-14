@@ -144,6 +144,18 @@ CREATE INDEX IF NOT EXISTS idx_jobs_status_created
   ON pipeline_jobs(status, created_at DESC);
 
 -- ============================================================================
+-- Stub-mode auth sessions (Cognito mode validates JWT directly, no row needed)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  token       TEXT PRIMARY KEY,
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON auth_sessions(user_id);
+
+-- ============================================================================
 -- Per-user rate limiting (simple counter, day bucket)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS rate_limits (

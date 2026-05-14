@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 
 from .. import keys_repo
 from ..auth import AuthUser, CurrentUser, auth_mode, stub_login, stub_logout
@@ -36,7 +36,10 @@ def stub_login_endpoint(payload: StubLoginRequest) -> AuthSession:
 
 
 @router.post("/logout")
-def logout(authorization: str | None = None, user: AuthUser = CurrentUser) -> dict:
+def logout(
+    authorization: str | None = Header(default=None),
+    user: AuthUser = CurrentUser,
+) -> dict:
     if authorization and authorization.lower().startswith("bearer "):
         stub_logout(authorization.split(" ", 1)[1].strip())
     return {"ok": True}

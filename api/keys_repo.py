@@ -4,11 +4,13 @@ from __future__ import annotations
 import uuid
 from typing import Optional
 
+import json
+
 from .crypto import decrypt, encrypt, hint
 from .db import cursor
 
 
-VALID_PROVIDERS = {"openai", "anthropic", "elevenlabs"}
+VALID_PROVIDERS = {"openai", "anthropic", "elevenlabs", "bedrock"}
 
 
 def set_key(user_id: uuid.UUID, provider: str, plaintext: str) -> str:
@@ -19,7 +21,7 @@ def set_key(user_id: uuid.UUID, provider: str, plaintext: str) -> str:
         raise ValueError("key cannot be empty")
 
     cipher = encrypt(plaintext)
-    masked = hint(plaintext)
+    masked = _hint_for(provider, plaintext)
     with cursor() as cur:
         cur.execute(
             """
@@ -73,3 +75,17 @@ def load_keys(user_id: uuid.UUID) -> dict[str, str]:
 
 def get_key(user_id: uuid.UUID, provider: str) -> Optional[str]:
     return load_keys(user_id).get(provider)
+
+
+def _hint_for(provider: str, plaintext: str) -> str:
+    """For 'bedrock' (JSON config), return 'us-east-1 · ABCD'. Else last 4 chars."""
+    if provider != "bedrock":
+        return hint(plaintext)
+    try:
+        data = json.loads(plaintext)
+        region = data.get("region", "?")
+        access = data.get("access_key", "")
+        masked = hint(access)
+        return f"{region} · …{masked}"
+    except Exception:
+        return hint(plaintext)

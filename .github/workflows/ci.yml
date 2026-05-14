@@ -1,0 +1,82 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install boto3 pytest httpx
+      - name: Smoke import
+        env:
+          NEUROPOD_AUTH_MODE: stub
+          NEUROPOD_REQUIRE_USER_KEYS: "true"
+        run: |
+          python -c "from api.main import app; print('app boots')"
+      - name: API smoke test
+        env:
+          NEUROPOD_AUTH_MODE: stub
+          NEUROPOD_REQUIRE_USER_KEYS: "true"
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from api.main import app
+          c = TestClient(app)
+          assert c.get("/health").status_code == 200
+          assert c.get("/healthz").status_code == 200
+          assert c.get("/episodes").status_code == 401
+          assert c.get("/status").status_code == 200
+          r = c.post("/auth/stub/login", json={"email": "ci@example.com"})
+          assert r.status_code == 200, r.text
+          token = r.json()["token"]
+          h = {"Authorization": f"Bearer {token}"}
+          assert c.get("/me", headers=h).status_code == 200
+          assert c.post("/topics", headers=h, json={"topics": ["llm"]}).status_code == 200
+          assert c.put("/me/keys", headers=h, json={"provider": "openai", "api_key": "sk-ci-test-1234567890"}).status_code == 200
+          assert c.put("/me/keys", headers=h, json={
+              "provider": "bedrock",
+              "region": "us-east-1",
+              "access_key": "AKIAEXAMPLEEXAMPLE",
+              "secret_key": "exampleSecretWith20PlusCharacters",
+          }).status_code == 200
+          print("smoke ok")
+          PY
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+        run: npm run build

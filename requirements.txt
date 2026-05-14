@@ -6,8 +6,8 @@ pymupdf
 cryptography
 psycopg[binary,pool]
 PyJWT[crypto]
+boto3
 
-# Optional — production deploys
+# Optional — production polish
 # mangum            # Lambda adapter
-# boto3             # S3 + ECS clients
 # pydub             # audio post-processing (also needs ffmpeg installed)

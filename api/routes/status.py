@@ -33,8 +33,16 @@ def get_status(user: AuthUser | None = OptionalUser) -> dict:
     out["user"] = {"feed_slug": user.feed_slug, "email": user.email}
     out["topics"] = store_db.get_topics(user.id)
     out["keys"] = masked
+    if "bedrock" in masked:
+        llm = "bedrock"
+    elif "anthropic" in masked:
+        llm = "anthropic"
+    elif "openai" in masked:
+        llm = "openai"
+    else:
+        llm = "demo"
     out["providers"] = {
-        "llm": "anthropic" if "anthropic" in masked else ("openai" if "openai" in masked else "demo"),
+        "llm": llm,
         "tts": "elevenlabs" if "elevenlabs" in masked else ("openai" if "openai" in masked else "demo"),
         "embedder": "openai" if "openai" in masked else "demo",
     }

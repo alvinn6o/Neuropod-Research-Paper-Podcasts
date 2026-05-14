@@ -1,26 +1,26 @@
-"""Authentication: stub bearer tokens for local dev, Cognito JWT for prod.
+"""Authentication: stub bearer tokens (DB-persisted) for local/self-hosted,
+Cognito JWT for prod.
 
-Stub mode (NEUROPOD_AUTH_MODE=stub, the default): the frontend POSTs an email
-to /auth/stub/login and gets back a UUID token. The backend stores
-{token: user_id} in-memory. Good enough for local dev and self-hosted single-user.
+Stub mode (NEUROPOD_AUTH_MODE=stub, default): /auth/stub/login mints a UUID
+token and writes it to the auth_sessions table. Tokens survive process
+restarts and (in prod) Lambda cold starts.
 
-JWT mode (NEUROPOD_AUTH_MODE=cognito): the frontend sends a Cognito-issued
-JWT in `Authorization: Bearer <jwt>`. We verify the signature against the
-configured Cognito JWKS and treat `sub` as the user_id.
+JWT mode (NEUROPOD_AUTH_MODE=cognito): no DB row — the JWT itself is the
+session. We verify the signature against the Cognito JWKS each request and
+extract `sub` as user_id.
 """
 from __future__ import annotations
 
 import logging
 import os
 import re
-import threading
 import uuid
 from dataclasses import dataclass
 from typing import Optional
 
 from fastapi import Depends, Header, HTTPException, status
 
-from .db import upsert_user_by_email
+from .db import cursor, get_user_by_slug, upsert_user_by_email
 
 logger = logging.getLogger("neuropod.auth")
 
@@ -28,9 +28,6 @@ _AUTH_MODE = (os.getenv("NEUROPOD_AUTH_MODE") or "stub").lower()
 _COGNITO_REGION = os.getenv("NEUROPOD_COGNITO_REGION", "")
 _COGNITO_POOL_ID = os.getenv("NEUROPOD_COGNITO_POOL_ID", "")
 _COGNITO_AUDIENCE = os.getenv("NEUROPOD_COGNITO_CLIENT_ID", "")
-
-_stub_lock = threading.Lock()
-_stub_tokens: dict[str, "AuthUser"] = {}
 
 
 @dataclass(frozen=True)
@@ -47,27 +44,45 @@ def _slug_from_email(email: str) -> str:
 
 
 def stub_login(email: str) -> tuple[str, AuthUser]:
-    """Create or fetch a stub-mode session for the given email."""
     email = email.strip().lower()
     if not email or "@" not in email:
         raise ValueError("invalid email")
     feed_slug = _slug_from_email(email)
     user_id, slug_assigned = upsert_user_by_email(email=email, feed_slug=feed_slug)
     user = AuthUser(id=user_id, email=email, feed_slug=slug_assigned)
-    token = str(uuid.uuid4())
-    with _stub_lock:
-        _stub_tokens[token] = user
+    token = uuid.uuid4().hex
+    with cursor() as cur:
+        cur.execute(
+            "INSERT INTO auth_sessions (token, user_id) VALUES (%s, %s)",
+            (token, str(user_id)),
+        )
     return token, user
 
 
 def stub_logout(token: str) -> None:
-    with _stub_lock:
-        _stub_tokens.pop(token, None)
+    with cursor() as cur:
+        cur.execute("DELETE FROM auth_sessions WHERE token = %s", (token,))
 
 
 def _resolve_stub(token: str) -> Optional[AuthUser]:
-    with _stub_lock:
-        return _stub_tokens.get(token)
+    with cursor() as cur:
+        cur.execute(
+            """
+            SELECT u.id, u.email, u.feed_slug
+            FROM auth_sessions s
+            JOIN users u ON u.id = s.user_id
+            WHERE s.token = %s
+            """,
+            (token,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        cur.execute(
+            "UPDATE auth_sessions SET last_seen = CURRENT_TIMESTAMP WHERE token = %s",
+            (token,),
+        )
+    return AuthUser(id=_as_uuid(row[0]), email=row[1], feed_slug=row[2])
 
 
 def _resolve_cognito(token: str) -> Optional[AuthUser]:
@@ -133,3 +148,9 @@ OptionalUser = Depends(maybe_auth)
 
 def auth_mode() -> str:
     return _AUTH_MODE
+
+
+def _as_uuid(value) -> uuid.UUID:
+    if isinstance(value, uuid.UUID):
+        return value
+    return uuid.UUID(str(value))

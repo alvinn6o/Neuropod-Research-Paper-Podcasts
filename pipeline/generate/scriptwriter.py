@@ -8,6 +8,7 @@ from typing import Optional
 from .._http import ProviderError, post_json
 from ..models import PaperCandidate
 from ..provider_status import record_failure, record_success
+from .bedrock import BedrockClient, parse_bedrock_credentials
 
 logger = logging.getLogger("neuropod.scriptwriter")
 
@@ -35,10 +36,11 @@ class ScriptWriter:
         if require_user_keys:
             self.anthropic_key = keys.get("anthropic", "")
             self.openai_key = keys.get("openai", "")
+            self.bedrock_creds = parse_bedrock_credentials(keys.get("bedrock"))
         else:
-            # local/dev fallback: env if no per-user key given
             self.anthropic_key = keys.get("anthropic") or os.getenv("ANTHROPIC_API_KEY", "")
             self.openai_key = keys.get("openai") or os.getenv("OPENAI_API_KEY", "")
+            self.bedrock_creds = parse_bedrock_credentials(keys.get("bedrock")) or _operator_bedrock()
         self.provider = os.getenv("NEUROPOD_LLM_PROVIDER", "auto").lower()
 
     def write(
@@ -49,12 +51,27 @@ class ScriptWriter:
     ) -> tuple[str, str]:
         prompt = self._build_prompt(candidate, retrieved_chunks, audience_topics)
 
+        # Preference order: explicit override → bedrock (if creds) → anthropic → openai → demo
+        if self.provider == "bedrock" and self.bedrock_creds:
+            try:
+                return self._call_bedrock(prompt), "bedrock"
+            except ProviderError as exc:
+                record_failure("script:bedrock", error=exc.detail, status=exc.status)
+                logger.warning("bedrock failed, falling back: %s", exc)
+
         if self.provider in {"anthropic", "auto"} and self.anthropic_key:
             try:
                 return self._call_anthropic(prompt), "anthropic"
             except ProviderError as exc:
                 record_failure("script:anthropic", error=exc.detail, status=exc.status)
                 logger.warning("anthropic failed, falling back: %s", exc)
+
+        if self.provider in {"bedrock", "auto"} and self.bedrock_creds:
+            try:
+                return self._call_bedrock(prompt), "bedrock"
+            except ProviderError as exc:
+                record_failure("script:bedrock", error=exc.detail, status=exc.status)
+                logger.warning("bedrock failed, falling back: %s", exc)
 
         if self.provider in {"openai", "auto"} and self.openai_key:
             try:
@@ -86,6 +103,17 @@ class ScriptWriter:
             f"RETRIEVED PAPER SECTIONS:\n{chunks_block}\n\n"
             "Write the 6-9 minute narration now. 800-1200 words. Pure spoken prose."
         )
+
+    def _call_bedrock(self, prompt: str) -> str:
+        creds = self.bedrock_creds or {}
+        client = BedrockClient(
+            access_key=creds["access_key"],
+            secret_key=creds["secret_key"],
+            region=creds["region"],
+            session_token=creds.get("session_token") or None,
+            model_id=creds.get("model_id") or "us.anthropic.claude-sonnet-4-6-20251010-v1:0",
+        )
+        return client.messages(system=SYSTEM_PROMPT, user_prompt=prompt)
 
     def _call_anthropic(self, prompt: str) -> str:
         start = time.time()
@@ -156,3 +184,23 @@ class ScriptWriter:
     def _sentence(self, text: str) -> str:
         sentence = text.strip().split(".")[0].strip()
         return sentence if sentence.endswith(".") else f"{sentence}."
+
+
+def _operator_bedrock() -> dict[str, str] | None:
+    """Bedrock can also be configured at the infra level (IAM role on Lambda/Fargate).
+
+    When NEUROPOD_BEDROCK_OPERATOR=true and AWS creds are inferred from the
+    environment, allow Bedrock as an operator-mode fallback. (Off by default —
+    BYOK keeps the operator off the bill.)"""
+    if os.getenv("NEUROPOD_BEDROCK_OPERATOR", "").strip().lower() not in {"1", "true", "yes"}:
+        return None
+    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
+    if not region:
+        return None
+    return {
+        "access_key": os.getenv("AWS_ACCESS_KEY_ID", ""),
+        "secret_key": os.getenv("AWS_SECRET_ACCESS_KEY", ""),
+        "region": region,
+        "session_token": os.getenv("AWS_SESSION_TOKEN", ""),
+        "model_id": os.getenv("NEUROPOD_BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-6-20251010-v1:0"),
+    }

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, HTTPException
 
 from .. import keys_repo
@@ -21,10 +23,26 @@ def get_me(user: AuthUser = CurrentUser) -> MeResponse:
 
 @router.put("/keys", response_model=MeResponse)
 def update_key(payload: KeyUpdateRequest, user: AuthUser = CurrentUser) -> MeResponse:
+    if payload.provider == "bedrock":
+        if not (payload.region and payload.access_key and payload.secret_key):
+            raise HTTPException(status_code=400, detail="bedrock requires region, access_key, and secret_key")
+        plaintext = json.dumps({
+            "region": payload.region,
+            "access_key": payload.access_key,
+            "secret_key": payload.secret_key,
+            "session_token": payload.session_token or "",
+            "model_id": payload.model_id or "us.anthropic.claude-sonnet-4-6-20251010-v1:0",
+        })
+    else:
+        if not payload.api_key:
+            raise HTTPException(status_code=400, detail=f"{payload.provider} requires api_key")
+        plaintext = payload.api_key
+
     try:
-        keys_repo.set_key(user.id, payload.provider, payload.api_key)
+        keys_repo.set_key(user.id, payload.provider, plaintext)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
     return MeResponse(
         id=str(user.id),
         email=user.email,
