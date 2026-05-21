@@ -62,6 +62,46 @@ The status badge in the top right of the UI flips from "demo" to "live" when rea
 
 There's no signup, no Anthropic/OpenAI/ElevenLabs login flow inside the app — you paste keys directly into `.env`. Costs roughly land around $0.02 per script (LLM) plus $0.03 to $0.15 per episode for TTS depending on which provider you use.
 
+## Architecture
+
+```mermaid
+flowchart TB
+  user(["User browser"])
+  vercel[("Next.js frontend")]
+  cf["CloudFront<br/>(audio CDN)"]
+  apigw["API Gateway / ALB"]
+  api["FastAPI<br/>(Lambda or ECS)"]
+  cognito[("Cognito<br/>user pool")]
+  worker["Pipeline worker<br/>(Fargate Spot)"]
+  ecr[("ECR<br/>container image")]
+  eb["EventBridge<br/>daily cron"]
+  pg[("Postgres + pgvector<br/>HNSW index<br/>(users, episodes,<br/>chunks, jobs)")]
+  s3["S3<br/>audio + papers"]
+  pstore["Parameter Store<br/>MASTER_KEY"]
+  llm["Claude<br/>(Bedrock or direct)"]
+  tts["ElevenLabs / OpenAI TTS"]
+  arxiv["arXiv API"]
+
+  user --> vercel
+  user --> cf
+  vercel -->|JWT| apigw
+  apigw --> api
+  api <--> cognito
+  api <--> pg
+  api --> pstore
+  cf --> s3
+  api -->|enqueue job| worker
+  eb -->|nightly| worker
+  worker <-- ecr
+  worker <--> pg
+  worker -->|user keys, decrypted| llm
+  worker -->|user keys, decrypted| tts
+  worker --> arxiv
+  worker -->|upload mp3| s3
+```
+
+**Two-tier compute**: Lambda/ECS for fast web requests, Fargate Spot for long pipeline runs. State lives in Postgres so the tiers stay decoupled.
+
 ## How it works
 
 1. Pulls candidate papers from arXiv filtered to your topics and a window (default last 7 days).
