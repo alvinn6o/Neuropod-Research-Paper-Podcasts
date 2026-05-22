@@ -191,6 +191,22 @@ button {
   transition: color 80ms ease, background 80ms ease;
 }
 
+.nav-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  transition: color 80ms ease, background 80ms ease;
+}
+
+.nav-icon:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
 .nav-signout:hover {
   color: var(--text);
   background: var(--surface-hover);
