@@ -50,9 +50,10 @@ def _run_job(job_id: uuid.UUID, user_id: uuid.UUID, topics: list[str], episode_c
 
 # Per-run hard cap on episode count. Each generation is ~$0.05-0.50 in
 # provider spend (LLM + optional TTS), so we keep the per-click ceiling
-# small even though the daily-per-user cap (NEUROPOD_DAILY_PIPELINE_LIMIT)
-# already bounds the total. Bump to 5 if you want a binge-generation UX.
-MAX_EPISODES_PER_RUN = 3
+# bounded even though the daily-per-user cap (NEUROPOD_DAILY_PIPELINE_LIMIT)
+# already bounds the total. 5 supports a "weekly catch-up" UX while staying
+# under ~$2.50 per click in the worst case.
+MAX_EPISODES_PER_RUN = 5
 
 
 @router.post("/run", response_model=JobResponse)

@@ -16,7 +16,7 @@ const WINDOWS = [
 // Per-run cap — matches backend MAX_EPISODES_PER_RUN. Backend re-validates,
 // so changing this without the backend just shows extra options that get
 // rejected at the API layer (treat backend as source of truth).
-const EPISODE_COUNTS = [1, 2, 3] as const
+const EPISODE_COUNTS = [1, 2, 3, 4, 5] as const
 const DEFAULT_EPISODES = 3
 
 const WINDOW_STORAGE_KEY = "neuropod-window-days"
