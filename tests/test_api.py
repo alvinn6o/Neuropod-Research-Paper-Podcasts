@@ -107,6 +107,23 @@ def test_categories_reject_invalid(client, auth_headers):
     assert "with:colon" not in cats
 
 
+def test_pipeline_run_rejects_episodes_over_cap(client, auth_headers):
+    """The per-run episode cap is enforced by FastAPI's query validation."""
+    client.post("/topics", headers=auth_headers, json={"topics": ["test"]})
+    # cap is 3; asking for 4 should fail before we even hit a worker
+    response = client.post("/pipeline/run?episodes=4", headers=auth_headers)
+    assert response.status_code == 422
+
+
+def test_pipeline_run_accepts_episodes_param_within_cap(client, auth_headers):
+    """A valid episodes value (1..3) records on the created job row."""
+    client.post("/topics", headers=auth_headers, json={"topics": ["test"]})
+    response = client.post("/pipeline/run?episodes=2", headers=auth_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["episode_count"] == 2
+
+
 def test_dedupe_skips_existing_episode_for_same_paper(client, auth_headers):
     """run_for_user must not insert a second episode for a paper the user
     already has — even if the ranker would have selected it again."""

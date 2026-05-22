@@ -48,10 +48,18 @@ def _run_job(job_id: uuid.UUID, user_id: uuid.UUID, topics: list[str], episode_c
             _active_jobs.discard(job_id)
 
 
+# Per-run hard cap on episode count. Each generation is ~$0.05-0.50 in
+# provider spend (LLM + optional TTS), so we keep the per-click ceiling
+# small even though the daily-per-user cap (NEUROPOD_DAILY_PIPELINE_LIMIT)
+# already bounds the total. Bump to 5 if you want a binge-generation UX.
+MAX_EPISODES_PER_RUN = 3
+
+
 @router.post("/run", response_model=JobResponse)
 def trigger_run(
     background: BackgroundTasks,
     window: int | None = Query(default=None, ge=1, le=365),
+    episodes: int | None = Query(default=None, ge=1, le=MAX_EPISODES_PER_RUN),
     user: AuthUser = CurrentUser,
 ) -> JobResponse:
     settings = get_settings()
@@ -67,13 +75,14 @@ def trigger_run(
         raise HTTPException(status_code=429, detail="daily pipeline limit reached")
 
     window_days = window or settings.discovery_window_days
+    requested_count = min(episodes or settings.default_episode_count, MAX_EPISODES_PER_RUN)
     job_id = store_db.create_job(
         user.id,
         window_days=window_days,
         topics=topics,
-        episode_count=settings.default_episode_count,
+        episode_count=requested_count,
     )
-    background.add_task(_run_job, job_id, user.id, topics, settings.default_episode_count, window_days)
+    background.add_task(_run_job, job_id, user.id, topics, requested_count, window_days)
 
     job = store_db.get_job(job_id)
     return JobResponse(**job)  # type: ignore[arg-type]

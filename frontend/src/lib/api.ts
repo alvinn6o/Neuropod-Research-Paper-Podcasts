@@ -128,8 +128,11 @@ export async function postFeedback(episodeId: string, eventType: string, positio
   })
 }
 
-export async function runPipeline(windowDays?: number) {
-  const query = windowDays ? `?window=${windowDays}` : ""
+export async function runPipeline(opts: { windowDays?: number; episodes?: number } = {}) {
+  const params = new URLSearchParams()
+  if (opts.windowDays) params.set("window", String(opts.windowDays))
+  if (opts.episodes) params.set("episodes", String(opts.episodes))
+  const query = params.toString() ? `?${params.toString()}` : ""
   return fetchJson<JobResponse>(`/pipeline/run${query}`, { method: "POST" })
 }
 

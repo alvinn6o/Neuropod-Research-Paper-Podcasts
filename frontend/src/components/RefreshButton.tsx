@@ -13,19 +13,34 @@ const WINDOWS = [
   { days: 30, label: "1mo" },
 ]
 
-const STORAGE_KEY = "neuropod-window-days"
+// Per-run cap — matches backend MAX_EPISODES_PER_RUN. Backend re-validates,
+// so changing this without the backend just shows extra options that get
+// rejected at the API layer (treat backend as source of truth).
+const EPISODE_COUNTS = [1, 2, 3] as const
+const DEFAULT_EPISODES = 3
+
+const WINDOW_STORAGE_KEY = "neuropod-window-days"
+const EPISODES_STORAGE_KEY = "neuropod-episodes-per-run"
 
 export function RefreshButton() {
   const router = useRouter()
   const [running, setRunning] = useState(false)
   const [windowDays, setWindowDays] = useState<number>(7)
+  const [episodesPerRun, setEpisodesPerRun] = useState<number>(DEFAULT_EPISODES)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      const parsed = Number.parseInt(saved, 10)
+    const savedWindow = window.localStorage.getItem(WINDOW_STORAGE_KEY)
+    if (savedWindow) {
+      const parsed = Number.parseInt(savedWindow, 10)
       if (Number.isFinite(parsed) && parsed > 0) setWindowDays(parsed)
+    }
+    const savedEpisodes = window.localStorage.getItem(EPISODES_STORAGE_KEY)
+    if (savedEpisodes) {
+      const parsed = Number.parseInt(savedEpisodes, 10)
+      if (EPISODE_COUNTS.includes(parsed as typeof EPISODE_COUNTS[number])) {
+        setEpisodesPerRun(parsed)
+      }
     }
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
@@ -34,25 +49,26 @@ export function RefreshButton() {
 
   const pickWindow = (days: number) => {
     setWindowDays(days)
-    window.localStorage.setItem(STORAGE_KEY, String(days))
+    window.localStorage.setItem(WINDOW_STORAGE_KEY, String(days))
+  }
+
+  const pickEpisodes = (count: number) => {
+    setEpisodesPerRun(count)
+    window.localStorage.setItem(EPISODES_STORAGE_KEY, String(count))
   }
 
   const trigger = async () => {
     if (running) return
-    // Defensive: clear any stale interval before starting a new one. Without
-    // this, a previous run that errored out without entering its terminal
-    // branch could leave the interval ticking forever.
     if (pollRef.current) {
       clearInterval(pollRef.current)
       pollRef.current = null
     }
     setRunning(true)
     try {
-      const job = await runPipeline(windowDays)
-      emitToast(`Generating from last ${windowDays}d…`, "info")
+      const job = await runPipeline({ windowDays, episodes: episodesPerRun })
+      const epLabel = episodesPerRun === 1 ? "episode" : "episodes"
+      emitToast(`Generating up to ${episodesPerRun} ${epLabel} from last ${windowDays}d…`, "info")
 
-      // Hard ceiling: stop polling after 10 minutes regardless of state, so a
-      // wedged job never leaves the UI spinning indefinitely.
       const maxPolls = Math.floor((10 * 60 * 1000) / 1500)
       let polls = 0
       let consecutiveFailures = 0
@@ -88,8 +104,6 @@ export function RefreshButton() {
             }
           }
         } catch {
-          // Tolerate transient network blips, but bail out after a streak so
-          // we don't spin forever if the API is permanently unreachable.
           consecutiveFailures += 1
           if (consecutiveFailures >= 5) {
             if (pollRef.current) clearInterval(pollRef.current)
@@ -106,7 +120,7 @@ export function RefreshButton() {
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       <div className="window-selector" role="radiogroup" aria-label="Discovery window">
         {WINDOWS.map((w) => (
           <button
@@ -117,8 +131,25 @@ export function RefreshButton() {
             className={windowDays === w.days ? "active" : ""}
             onClick={() => pickWindow(w.days)}
             disabled={running}
+            title={`Search papers from the last ${w.days} day${w.days === 1 ? "" : "s"}`}
           >
             {w.label}
+          </button>
+        ))}
+      </div>
+      <div className="window-selector" role="radiogroup" aria-label="Episodes per run">
+        {EPISODE_COUNTS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={episodesPerRun === n}
+            className={episodesPerRun === n ? "active" : ""}
+            onClick={() => pickEpisodes(n)}
+            disabled={running}
+            title={`Generate up to ${n} episode${n === 1 ? "" : "s"} per run`}
+          >
+            {n}ep
           </button>
         ))}
       </div>
@@ -127,7 +158,7 @@ export function RefreshButton() {
         onClick={trigger}
         disabled={running}
         type="button"
-        title={`Run pipeline over last ${windowDays} day${windowDays === 1 ? "" : "s"}`}
+        title={`Run pipeline over last ${windowDays} day${windowDays === 1 ? "" : "s"} for up to ${episodesPerRun} episode${episodesPerRun === 1 ? "" : "s"}`}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{
           animation: running ? "spin 1s linear infinite" : undefined
