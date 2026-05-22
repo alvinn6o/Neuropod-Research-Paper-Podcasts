@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
-from .db import cursor, init_schema
+from .db import cursor, init_schema, shutdown as db_shutdown
 from .observability import RequestIdMiddleware, configure_logging
 from .routes.ask import router as ask_router
 from .routes.auth import router as auth_router
@@ -27,7 +27,10 @@ configure_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_schema()
-    yield
+    try:
+        yield
+    finally:
+        db_shutdown()
 
 
 app = FastAPI(

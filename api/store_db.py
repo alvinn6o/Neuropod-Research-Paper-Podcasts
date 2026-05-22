@@ -492,27 +492,35 @@ def update_job(
 def increment_rate_limit(
     user_id: uuid.UUID, bucket: str, *, daily_max: int
 ) -> tuple[int, bool]:
+    """Atomically increment and check the per-user daily counter.
+
+    Uses a single UPSERT that returns the post-increment count, so two
+    concurrent requests can't both see "count=9, ok to add" and both succeed
+    past a 10/day cap. Works on both Postgres and the SQLite shim because
+    both support INSERT ... ON CONFLICT DO UPDATE ... RETURNING.
+
+    Returns (count_after_increment, was_under_or_at_limit).
+    """
     today = date.today().isoformat()
     with cursor() as cur:
         cur.execute(
-            "SELECT count FROM rate_limits WHERE user_id = %s AND bucket = %s AND day = %s",
+            """
+            INSERT INTO rate_limits (user_id, bucket, day, count)
+            VALUES (%s, %s, %s, 1)
+            ON CONFLICT(user_id, bucket, day)
+            DO UPDATE SET count = rate_limits.count + 1
+            RETURNING count
+            """,
             (str(user_id), bucket, today),
         )
         row = cur.fetchone()
-        current = int(row[0]) if row else 0
-        if current >= daily_max:
-            return current, False
-        new_count = current + 1
-        if row:
-            cur.execute(
-                "UPDATE rate_limits SET count = %s WHERE user_id = %s AND bucket = %s AND day = %s",
-                (new_count, str(user_id), bucket, today),
-            )
-        else:
-            cur.execute(
-                "INSERT INTO rate_limits (user_id, bucket, day, count) VALUES (%s, %s, %s, %s)",
-                (str(user_id), bucket, today, new_count),
-            )
+        new_count = int(row[0]) if row else 1
+
+    if new_count > daily_max:
+        # Already incremented; consumer logs and rejects. We don't decrement
+        # back — keeping the over-cap value lets you audit "this user
+        # repeatedly hammered the API" instead of hiding the attempt.
+        return new_count, False
     return new_count, True
 
 

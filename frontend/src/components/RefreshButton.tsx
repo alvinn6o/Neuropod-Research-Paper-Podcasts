@@ -39,14 +39,36 @@ export function RefreshButton() {
 
   const trigger = async () => {
     if (running) return
+    // Defensive: clear any stale interval before starting a new one. Without
+    // this, a previous run that errored out without entering its terminal
+    // branch could leave the interval ticking forever.
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
     setRunning(true)
     try {
       const job = await runPipeline(windowDays)
       emitToast(`Generating from last ${windowDays}d…`, "info")
 
+      // Hard ceiling: stop polling after 10 minutes regardless of state, so a
+      // wedged job never leaves the UI spinning indefinitely.
+      const maxPolls = Math.floor((10 * 60 * 1000) / 1500)
+      let polls = 0
+      let consecutiveFailures = 0
+
       pollRef.current = setInterval(async () => {
+        polls += 1
+        if (polls > maxPolls) {
+          if (pollRef.current) clearInterval(pollRef.current)
+          pollRef.current = null
+          setRunning(false)
+          emitToast("Pipeline taking longer than expected. Check logs.", "error")
+          return
+        }
         try {
           const next = await getPipelineJob(job.id)
+          consecutiveFailures = 0
           if (next.status === "done" || next.status === "error") {
             if (pollRef.current) clearInterval(pollRef.current)
             pollRef.current = null
@@ -66,7 +88,15 @@ export function RefreshButton() {
             }
           }
         } catch {
-          // ignore transient
+          // Tolerate transient network blips, but bail out after a streak so
+          // we don't spin forever if the API is permanently unreachable.
+          consecutiveFailures += 1
+          if (consecutiveFailures >= 5) {
+            if (pollRef.current) clearInterval(pollRef.current)
+            pollRef.current = null
+            setRunning(false)
+            emitToast("Lost connection to API while polling. Try again.", "error")
+          }
         }
       }, 1500)
     } catch (err) {

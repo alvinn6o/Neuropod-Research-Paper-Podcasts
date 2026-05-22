@@ -101,6 +101,20 @@ def _apply_migrations() -> None:
             continue
 
 
+def shutdown() -> None:
+    """Release DB resources. Call from the FastAPI lifespan on app stop."""
+    global _pool
+    if _pool is not None:
+        try:
+            _pool.close()
+        except Exception:
+            pass
+        _pool = None
+    shim = _LocalShim._singleton
+    if shim is not None:
+        shim.close()
+
+
 # ----------------------------------------------------------------------------
 # User helpers (called by auth)
 # ----------------------------------------------------------------------------
@@ -232,6 +246,15 @@ class _LocalShim:
     def commit(self) -> None:
         with self._lock:
             self._conn.commit()
+
+    def close(self) -> None:
+        """Idempotent shutdown — closes the SQLite connection and clears the singleton."""
+        with self._lock:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+        type(self)._singleton = None
 
 
 class _CursorAdapter:

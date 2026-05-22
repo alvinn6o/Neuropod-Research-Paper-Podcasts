@@ -58,14 +58,34 @@ class PDFExtractor:
         if candidate.pdf_url:
             try:
                 pdf_bytes = self._fetch(candidate.pdf_url)
-                if pdf_bytes:
-                    sections = self._extract_from_pdf(pdf_bytes)
-                    if sections and sum(len(v) for v in sections.values()) > 600:
-                        sections = _normalize_sections(sections, candidate.abstract)
-                        return sections
             except Exception as exc:
-                logger.warning("pdf extraction failed for %s: %s", candidate.arxiv_id, exc)
+                logger.warning(
+                    "pdf fetch failed for %s (%s); falling back to abstract-only chunks",
+                    candidate.arxiv_id, exc,
+                )
+                pdf_bytes = None
 
+            if pdf_bytes:
+                try:
+                    sections = self._extract_from_pdf(pdf_bytes)
+                except Exception as exc:
+                    logger.warning(
+                        "pdf parse failed for %s (%s); falling back to abstract-only chunks",
+                        candidate.arxiv_id, exc,
+                    )
+                    sections = {}
+                if sections and sum(len(v) for v in sections.values()) > 600:
+                    return _normalize_sections(sections, candidate.abstract)
+                logger.warning(
+                    "pdf parse for %s yielded thin content (%d sections, %d chars); "
+                    "falling back to abstract-only",
+                    candidate.arxiv_id,
+                    len(sections or {}),
+                    sum(len(v) for v in (sections or {}).values()),
+                )
+
+        # Distinguishable fallback so downstream consumers can tell whether the
+        # chunks they're looking at are full-PDF or abstract-only.
         return candidate.sections or {"abstract": candidate.abstract}
 
     def _fetch(self, url: str) -> Optional[bytes]:
