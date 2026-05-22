@@ -26,6 +26,7 @@ def build_demo_payload(
     prior_episodes: Optional[list[dict]] = None,
     keys: Optional[dict[str, str]] = None,
     require_user_keys: bool = False,
+    categories: Optional[list[str]] = None,
 ) -> dict:
     """Run the full discover→script→audio pipeline.
 
@@ -50,7 +51,12 @@ def build_demo_payload(
 
     affinity_scores = compute_affinity(feedback_events or [], prior_episodes or [])
 
-    candidates = discovery.search(topics=topics, days=window_days, max_results=max(6, num_episodes * 2))
+    candidates = discovery.search(
+        topics=topics,
+        days=window_days,
+        max_results=max(6, num_episodes * 2),
+        categories=categories or [],
+    )
     candidates = metadata.enrich(candidates)
     selected = rank_candidates(
         candidates,

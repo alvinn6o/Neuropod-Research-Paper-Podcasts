@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react"
 
 import { AuthGuard } from "@/components/AuthGuard"
+import { CategorySelector } from "@/components/CategorySelector"
 import { TopicSelector } from "@/components/TopicSelector"
-import { getTopics } from "@/lib/api"
+import { getCategories, getTopics } from "@/lib/api"
 
 export default function TopicsPage() {
   return (
@@ -16,21 +17,29 @@ export default function TopicsPage() {
 
 function TopicsView() {
   const [topics, setTopics] = useState<string[] | null>(null)
+  const [categories, setCategories] = useState<string[] | null>(null)
 
   useEffect(() => {
     getTopics().then((r) => setTopics(r.topics)).catch(() => setTopics([]))
+    getCategories().then((r) => setCategories(r.categories)).catch(() => setCategories([]))
   }, [])
+
+  const ready = topics !== null && categories !== null
 
   return (
     <div className="stack-gap">
       <section className="hero">
-        <h1>Topics</h1>
-        <p>Used by the ranker to score new papers. Keep it tight.</p>
+        <h1>Topics &amp; categories</h1>
+        <p>Topics drive the semantic ranker. arXiv categories optionally narrow the corpus.</p>
       </section>
-      {topics === null ? (
+
+      {!ready ? (
         <div className="card"><div className="skeleton" style={{ height: 80 }} /></div>
       ) : (
-        <TopicSelector initialTopics={topics} />
+        <>
+          <TopicSelector initialTopics={topics!} />
+          <CategorySelector initialCategories={categories!} />
+        </>
       )}
     </div>
   )

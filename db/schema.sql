@@ -46,6 +46,17 @@ CREATE TABLE IF NOT EXISTS user_topics (
   PRIMARY KEY (user_id, topic)
 );
 
+-- Optional arXiv category filters (e.g., 'cs.AI', 'q-bio.QM', 'hep-th').
+-- Combined with topics as: (cat:X OR cat:Y) AND (all:"topic1" OR all:"topic2").
+-- Empty = "any category, just match topics."
+CREATE TABLE IF NOT EXISTS user_categories (
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category   TEXT NOT NULL,
+  position   INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, category)
+);
+
 -- ============================================================================
 -- Papers (shared across users — same arXiv paper isn't re-extracted per user)
 -- ============================================================================

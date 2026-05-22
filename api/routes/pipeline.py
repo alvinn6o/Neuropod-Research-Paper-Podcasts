@@ -55,8 +55,9 @@ def trigger_run(
 ) -> JobResponse:
     settings = get_settings()
     topics = store_db.get_topics(user.id) or settings.default_topics
-    if not topics:
-        raise HTTPException(status_code=400, detail="add at least one topic before running")
+    categories = store_db.get_categories(user.id)
+    if not topics and not categories:
+        raise HTTPException(status_code=400, detail="add at least one topic or category before running")
 
     _, allowed = store_db.increment_rate_limit(
         user.id, "pipeline_run", daily_max=settings.daily_pipeline_limit

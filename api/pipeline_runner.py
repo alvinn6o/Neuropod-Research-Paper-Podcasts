@@ -26,6 +26,7 @@ def run_for_user(
     episode_count: int,
     window_days: int,
     require_user_keys: bool = True,
+    categories: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run the pipeline for one user. Persists papers, chunks, episodes, audio."""
 
@@ -46,6 +47,7 @@ def run_for_user(
         prior_episodes=prior,
         keys=keys,
         require_user_keys=require_user_keys,
+        categories=categories or store_db.get_categories(user_id),
     )
 
     # papers + chunks

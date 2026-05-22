@@ -104,6 +104,32 @@ def test_logout_invalidates_session(client, auth_headers):
     assert client.get("/me", headers=auth_headers).status_code == 401
 
 
+def test_categories_crud(client, auth_headers):
+    response = client.get("/categories", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json() == {"categories": []}
+
+    response = client.post(
+        "/categories", headers=auth_headers,
+        json={"categories": ["cs.AI", "cs.LG", "hep-th", "cs.AI"]},  # dupe
+    )
+    assert response.status_code == 200
+    assert response.json()["categories"] == ["cs.AI", "cs.LG", "hep-th"]
+
+
+def test_categories_reject_invalid(client, auth_headers):
+    response = client.post(
+        "/categories", headers=auth_headers,
+        json={"categories": ["cs.AI", "with space", "with:colon", "valid-one"]},
+    )
+    # silently filters invalid entries
+    cats = response.json()["categories"]
+    assert "cs.AI" in cats
+    assert "valid-one" in cats
+    assert "with space" not in cats
+    assert "with:colon" not in cats
+
+
 def test_feed_returns_xml(client, auth_headers):
     slug = client.get("/me", headers=auth_headers).json()["feed_slug"]
     response = client.get(f"/feed/{slug}")

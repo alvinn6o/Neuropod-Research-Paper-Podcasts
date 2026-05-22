@@ -25,22 +25,41 @@ class ArxivClient:
     def __init__(self) -> None:
         self.live = os.getenv("NEUROPOD_LIVE_DISCOVERY", "false").lower() in {"1", "true", "yes"}
 
-    def search(self, topics: list[str], days: int = 7, max_results: int = 10) -> list[PaperCandidate]:
-        if self.live and topics:
+    def search(
+        self,
+        topics: list[str],
+        days: int = 7,
+        max_results: int = 10,
+        categories: list[str] | None = None,
+    ) -> list[PaperCandidate]:
+        if self.live and (topics or categories):
             try:
-                live = self._live_search(topics, max_results, days)
+                live = self._live_search(topics, max_results, days, categories or [])
                 if live:
                     return live
             except Exception:
                 pass
-        return self._demo_search(topics, max_results)
+        return self._demo_search(topics, max_results, categories or [])
 
-    def _live_search(self, topics: list[str], max_results: int, days: int) -> list[PaperCandidate]:
-        topic_clause = " OR ".join(f'all:"{t}"' for t in topics[:5])
+    def _live_search(
+        self,
+        topics: list[str],
+        max_results: int,
+        days: int,
+        categories: list[str],
+    ) -> list[PaperCandidate]:
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=max(days, 1))
         date_clause = f"submittedDate:[{start.strftime('%Y%m%d%H%M')} TO {end.strftime('%Y%m%d%H%M')}]"
-        full_query = f"({topic_clause}) AND {date_clause}"
+
+        clauses = [date_clause]
+        if topics:
+            topic_clause = " OR ".join(f'all:"{t}"' for t in topics[:5])
+            clauses.append(f"({topic_clause})")
+        if categories:
+            cat_clause = " OR ".join(f'cat:{c}' for c in categories[:10])
+            clauses.append(f"({cat_clause})")
+        full_query = " AND ".join(clauses)
 
         params = urllib.parse.urlencode({
             "search_query": full_query,
@@ -87,9 +106,27 @@ class ArxivClient:
             ))
         return candidates
 
-    def _demo_search(self, topics: list[str], max_results: int) -> list[PaperCandidate]:
+    def _demo_search(
+        self,
+        topics: list[str],
+        max_results: int,
+        categories: list[str] | None = None,
+    ) -> list[PaperCandidate]:
         topic_terms = self._topic_terms(topics)
+        category_set = {c.lower() for c in (categories or [])}
         catalog = [copy.deepcopy(item) for item in get_demo_catalog()]
+
+        # Category prefilter: if the user pinned categories, only keep papers
+        # whose tags intersect (or share a prefix like 'cs.' for 'cs.AI' filter).
+        if category_set:
+            def matches_category(item: PaperCandidate) -> bool:
+                paper_tags = {tag.lower() for tag in item.categories}
+                if paper_tags & category_set:
+                    return True
+                # prefix match: 'cs' user filter matches 'cs.AI' paper tag
+                return any(any(tag.startswith(prefix + ".") for tag in paper_tags) for prefix in category_set)
+            catalog = [c for c in catalog if matches_category(c)]
+
         if not topic_terms:
             return catalog[:max_results]
 

@@ -1,0 +1,24 @@
+{
+  "paper": {
+    "arxiv_id": "2312.00752",
+    "title": "Mamba: Linear-Time Sequence Modeling with Selective State Spaces",
+    "authors": [
+      "Albert Gu",
+      "Tri Dao"
+    ],
+    "categories": [
+      "cs.LG"
+    ]
+  },
+  "chunk_count": 56,
+  "embedder_backend": "HashEmbedder",
+  "embedding_dim": 48,
+  "sections": {
+    "abstract": 1666,
+    "introduction": 8000,
+    "methods": 8000,
+    "discussion": 2721,
+    "conclusion": 782,
+    "background": 8000
+  }
+}

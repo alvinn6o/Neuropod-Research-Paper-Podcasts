@@ -48,6 +48,37 @@ def set_topics(user_id: uuid.UUID, topics: list[str]) -> list[str]:
     return cleaned
 
 
+def get_categories(user_id: uuid.UUID) -> list[str]:
+    with cursor() as cur:
+        cur.execute(
+            "SELECT category FROM user_categories WHERE user_id = %s ORDER BY position, category",
+            (str(user_id),),
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
+def set_categories(user_id: uuid.UUID, categories: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for cat in categories:
+        c = (cat or "").strip()
+        if not c or c.lower() in seen:
+            continue
+        # Light validation: arXiv categories look like 'cs.AI', 'q-bio.QM', 'hep-th'
+        if len(c) > 32 or any(ch in c for ch in [" ", ":", "(", ")", '"']):
+            continue
+        seen.add(c.lower())
+        cleaned.append(c)
+    with cursor() as cur:
+        cur.execute("DELETE FROM user_categories WHERE user_id = %s", (str(user_id),))
+        for index, category in enumerate(cleaned):
+            cur.execute(
+                "INSERT INTO user_categories (user_id, category, position) VALUES (%s, %s, %s)",
+                (str(user_id), category, index),
+            )
+    return cleaned
+
+
 # ---------- Papers + chunks ----------
 
 def upsert_paper(record: dict[str, Any]) -> uuid.UUID:

@@ -116,6 +116,17 @@ export async function saveTopics(topics: string[]) {
   })
 }
 
+export async function getCategories() {
+  return fetchJson<{ categories: string[] }>("/categories")
+}
+
+export async function saveCategories(categories: string[]) {
+  return fetchJson<{ categories: string[] }>("/categories", {
+    method: "POST",
+    body: JSON.stringify({ categories }),
+  })
+}
+
 export async function askEpisode(id: string, question: string) {
   return fetchJson<AskResponse>(`/episodes/${id}/ask`, {
     method: "POST",

@@ -32,6 +32,7 @@ def get_status(user: AuthUser | None = OptionalUser) -> dict:
     out["authenticated"] = True
     out["user"] = {"feed_slug": user.feed_slug, "email": user.email}
     out["topics"] = store_db.get_topics(user.id)
+    out["categories"] = store_db.get_categories(user.id)
     out["keys"] = masked
     if "bedrock" in masked:
         llm = "bedrock"
