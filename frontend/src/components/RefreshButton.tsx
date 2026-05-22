@@ -54,9 +54,15 @@ export function RefreshButton() {
             if (next.status === "error") {
               emitToast(`Pipeline failed: ${next.error || "unknown error"}`, "error")
             } else {
-              emitToast(`Generated ${next.result_count} episode${next.result_count === 1 ? "" : "s"}`, "success")
-              router.refresh()
-              window.location.reload()
+              const generated = next.result_count
+              const skipped = next.skipped_count ?? 0
+              const newMsg = `Generated ${generated} new episode${generated === 1 ? "" : "s"}`
+              const skippedMsg = skipped > 0 ? ` (${skipped} already in feed)` : ""
+              emitToast(`${newMsg}${skippedMsg}`, "success")
+              if (generated > 0) {
+                router.refresh()
+                window.location.reload()
+              }
             }
           }
         } catch {

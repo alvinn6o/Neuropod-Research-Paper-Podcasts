@@ -131,7 +131,8 @@ CREATE TABLE IF NOT EXISTS pipeline_jobs (
   started_at    TIMESTAMPTZ,
   finished_at   TIMESTAMPTZ,
   error         TEXT,
-  result_count  INT NOT NULL DEFAULT 0
+  result_count  INT NOT NULL DEFAULT 0,
+  skipped_count INT NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_user_created

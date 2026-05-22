@@ -66,8 +66,12 @@ def main(argv: list[str] | None = None) -> int:
                 status="done",
                 finished_at=True,
                 result_count=result["result_count"],
+                skipped_count=result.get("skipped_existing", 0),
             )
-            logger.info("job %s completed: %d episodes", job_id, result["result_count"])
+            logger.info(
+                "job %s completed: %d new, %d skipped (already existed)",
+                job_id, result["result_count"], result.get("skipped_existing", 0),
+            )
             return 0
         except Exception as exc:
             logger.exception("job failed")
@@ -95,9 +99,14 @@ def main(argv: list[str] | None = None) -> int:
             synthesize_audio=args.with_audio or settings.generate_audio_on_pipeline,
         )
         store_db.update_job(
-            job_id, status="done", finished_at=True, result_count=result["result_count"]
+            job_id, status="done", finished_at=True,
+            result_count=result["result_count"],
+            skipped_count=result.get("skipped_existing", 0),
         )
-        logger.info("ad-hoc job completed: %s episodes", result["result_count"])
+        logger.info(
+            "ad-hoc job completed: %d new, %d skipped (already existed)",
+            result["result_count"], result.get("skipped_existing", 0),
+        )
         return 0
     except Exception as exc:
         logger.exception("ad-hoc job failed")

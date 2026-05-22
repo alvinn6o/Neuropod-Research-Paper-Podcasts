@@ -63,7 +63,11 @@ def cursor() -> Iterator[Any]:
 
 
 def init_schema() -> None:
-    """Apply schema.sql on the configured database."""
+    """Apply schema.sql on the configured database.
+
+    Idempotent. Also applies opportunistic additive migrations so existing
+    SQLite/Postgres databases pick up new columns without a manual reset.
+    """
     schema_path = Path(__file__).resolve().parents[1] / "db" / "schema.sql"
     if not schema_path.exists():
         return
@@ -72,9 +76,29 @@ def init_schema() -> None:
         statements = schema_path.read_text()
         with cursor() as cur:
             cur.execute(statements)
+        _apply_migrations()
         return
 
     _LocalShim.instance().init_schema()
+    _apply_migrations()
+
+
+# Forward-compatible additive migrations. Each statement is run independently
+# and any "duplicate column" / "already exists" error is silently ignored,
+# so this is safe to call against schemas at any version.
+_MIGRATIONS = [
+    "ALTER TABLE pipeline_jobs ADD COLUMN skipped_count INT NOT NULL DEFAULT 0",
+]
+
+
+def _apply_migrations() -> None:
+    for stmt in _MIGRATIONS:
+        try:
+            with cursor() as cur:
+                cur.execute(stmt)
+        except Exception:
+            # Most likely "column already exists" — fine.
+            continue
 
 
 # ----------------------------------------------------------------------------

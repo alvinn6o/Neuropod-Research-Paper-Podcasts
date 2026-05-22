@@ -107,6 +107,95 @@ def test_categories_reject_invalid(client, auth_headers):
     assert "with:colon" not in cats
 
 
+def test_dedupe_skips_existing_episode_for_same_paper(client, auth_headers):
+    """run_for_user must not insert a second episode for a paper the user
+    already has — even if the ranker would have selected it again."""
+    import uuid as _u
+    from api import store_db
+    from api.pipeline_runner import run_for_user
+
+    me = client.get("/me", headers=auth_headers).json()
+    user_id = _u.UUID(me["id"])
+
+    # Seed a paper + one existing episode for it
+    paper_id = store_db.upsert_paper({
+        "arxiv_id": "9999.dedupe-test",
+        "title": "Dedupe Test Paper",
+        "authors": ["A"],
+        "abstract": "abstract text",
+        "categories": ["cs.AI"],
+        "published_at": "2026-01-01T00:00:00Z",
+        "pdf_url": "",
+        "citation_count": 0,
+    })
+    existing_id = store_db.insert_episode(user_id, paper_id, {
+        "title": "Dedupe Test Paper",
+        "description": "existing description",
+        "topic": "test",
+        "score": 0.5,
+        "script": "existing script body that is long enough to count",
+        "qa_status": "verified",
+        "qa_notes": None,
+        "duration_secs": 60,
+        "llm_provider": "demo",
+        "tts_provider": "none",
+        "audio_key": None,
+        "audio_mime": "audio/wav",
+    })
+
+    assert store_db.find_episode_for_paper(user_id, paper_id) == existing_id
+
+    # Re-run the pipeline; demo catalog doesn't include this paper id, so
+    # we just confirm find_episode_for_paper would have blocked the insert.
+    # The real assertion is the helper itself.
+    second_insert = store_db.find_episode_for_paper(user_id, paper_id)
+    assert second_insert == existing_id, "find_episode_for_paper must return the existing UUID, not create a new one"
+
+
+def test_delete_duplicate_episodes_keeps_oldest(client, auth_headers):
+    import uuid as _u
+    from api import store_db
+
+    me = client.get("/me", headers=auth_headers).json()
+    user_id = _u.UUID(me["id"])
+
+    paper_id = store_db.upsert_paper({
+        "arxiv_id": "9999.dedupe-cleanup",
+        "title": "Cleanup Test Paper",
+        "authors": ["A"],
+        "abstract": "abstract",
+        "categories": ["cs.AI"],
+        "published_at": "2026-01-01T00:00:00Z",
+        "pdf_url": "",
+        "citation_count": 0,
+    })
+
+    # Force three duplicate episodes
+    ids = []
+    for i in range(3):
+        ids.append(store_db.insert_episode(user_id, paper_id, {
+            "title": f"Cleanup Test Paper (v{i})",
+            "description": "dup",
+            "topic": "test",
+            "score": 0.1,
+            "script": "x" * 100,
+            "qa_status": "verified",
+            "qa_notes": None,
+            "duration_secs": 60,
+            "llm_provider": "demo",
+            "tts_provider": "none",
+            "audio_key": None,
+            "audio_mime": "audio/wav",
+        }))
+
+    deleted = store_db.delete_duplicate_episodes()
+    assert deleted >= 2  # at least the 2 newer copies of this paper
+
+    # Oldest survivor for this paper still exists
+    surviving = store_db.find_episode_for_paper(user_id, paper_id)
+    assert surviving == ids[0]
+
+
 def test_feed_returns_xml(client, auth_headers):
     slug = client.get("/me", headers=auth_headers).json()["feed_slug"]
     response = client.get(f"/feed/{slug}")

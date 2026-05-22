@@ -1,4 +1,4 @@
-.PHONY: help install dev worker test typecheck build clean reset eval
+.PHONY: help install dev worker test typecheck build clean reset eval dedupe
 
 help:
 	@echo "Targets:"
@@ -10,6 +10,7 @@ help:
 	@echo "  build       build both Docker images"
 	@echo "  reset       wipe local SQLite + audio cache"
 	@echo "  eval        run LLM-as-judge eval (costs API credits, requires OPENAI_API_KEY)"
+	@echo "  dedupe      remove duplicate episodes per (user_id, paper_id)"
 
 install:
 	pip install -r requirements.txt
@@ -38,3 +39,6 @@ reset:
 
 eval:
 	python -m eval.ragas_eval
+
+dedupe:
+	python scripts/dedupe_episodes.py

@@ -38,6 +38,7 @@ def _run_job(job_id: uuid.UUID, user_id: uuid.UUID, topics: list[str], episode_c
             status="done",
             finished_at=True,
             result_count=result["result_count"],
+            skipped_count=result.get("skipped_existing", 0),
         )
     except Exception as exc:
         logger.exception("pipeline job %s failed", job_id)

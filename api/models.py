@@ -108,6 +108,7 @@ class JobResponse(BaseModel):
     finished_at: Optional[str]
     error: Optional[str]
     result_count: int
+    skipped_count: int = 0
 
 
 AuthSession.model_rebuild()

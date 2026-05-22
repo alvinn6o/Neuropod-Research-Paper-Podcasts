@@ -64,10 +64,18 @@ def run_for_user(
         store_db.replace_chunks_for_paper(new_paper_id, chunks)
 
     # Episodes are script-first. Audio is optional and can be generated later.
+    # Dedup: skip papers the user already has an episode for.
     inserted_ids: list[uuid.UUID] = []
+    skipped_existing = 0
     for episode in result["episodes"]:
         new_paper_id = paper_id_map.get(episode["paper_id"])
         if new_paper_id is None:
+            continue
+
+        existing = store_db.find_episode_for_paper(user_id, new_paper_id)
+        if existing is not None:
+            skipped_existing += 1
+            logger.info("skipping duplicate episode for paper %s (existing=%s)", new_paper_id, existing)
             continue
 
         episode_record = dict(episode)
@@ -86,6 +94,7 @@ def run_for_user(
         "generated_at": result["generated_at"],
         "episode_ids": [str(i) for i in inserted_ids],
         "result_count": len(inserted_ids),
+        "skipped_existing": skipped_existing,
     }
 
 

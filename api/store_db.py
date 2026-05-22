@@ -177,6 +177,45 @@ def get_paper(paper_id: uuid.UUID) -> Optional[dict[str, Any]]:
 
 # ---------- Episodes ----------
 
+def find_episode_for_paper(user_id: uuid.UUID, paper_id: uuid.UUID) -> Optional[uuid.UUID]:
+    """Return existing episode_id for this (user, paper) pair, or None.
+
+    Used to dedupe: if a user already has an episode for a paper, the next
+    pipeline run shouldn't create a second row for it.
+    """
+    with cursor() as cur:
+        cur.execute(
+            "SELECT id FROM episodes WHERE user_id = %s AND paper_id = %s LIMIT 1",
+            (str(user_id), str(paper_id)),
+        )
+        row = cur.fetchone()
+    return _as_uuid(row[0]) if row else None
+
+
+def delete_duplicate_episodes() -> int:
+    """One-shot cleanup: for each (user_id, paper_id) keep the oldest episode,
+    delete the rest. Returns the number of deleted rows."""
+    with cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, user_id, paper_id, created_at
+            FROM episodes ORDER BY user_id, paper_id, created_at
+            """
+        )
+        rows = cur.fetchall()
+        keep: set[tuple[str, str]] = set()
+        to_delete: list[str] = []
+        for row in rows:
+            key = (str(row[1]), str(row[2]))
+            if key in keep:
+                to_delete.append(str(row[0]))
+            else:
+                keep.add(key)
+        for episode_id in to_delete:
+            cur.execute("DELETE FROM episodes WHERE id = %s", (episode_id,))
+    return len(to_delete)
+
+
 def insert_episode(user_id: uuid.UUID, paper_id: uuid.UUID, episode: dict[str, Any]) -> uuid.UUID:
     episode_id = uuid.uuid4()
     with cursor() as cur:
@@ -357,7 +396,7 @@ def latest_job(user_id: uuid.UUID) -> Optional[dict[str, Any]]:
         cur.execute(
             """
             SELECT id, status, window_days, topics, episode_count,
-                   created_at, started_at, finished_at, error, result_count
+                   created_at, started_at, finished_at, error, result_count, skipped_count
             FROM pipeline_jobs
             WHERE user_id = %s ORDER BY created_at DESC LIMIT 1
             """,
@@ -377,6 +416,7 @@ def latest_job(user_id: uuid.UUID) -> Optional[dict[str, Any]]:
         "finished_at": _iso(row[7]),
         "error": row[8],
         "result_count": row[9],
+        "skipped_count": row[10] if len(row) > 10 else 0,
     }
 
 
@@ -385,7 +425,7 @@ def get_job(job_id: uuid.UUID) -> Optional[dict[str, Any]]:
         cur.execute(
             """
             SELECT id, user_id, status, window_days, topics, episode_count,
-                   created_at, started_at, finished_at, error, result_count
+                   created_at, started_at, finished_at, error, result_count, skipped_count
             FROM pipeline_jobs WHERE id = %s
             """,
             (str(job_id),),
@@ -405,6 +445,7 @@ def get_job(job_id: uuid.UUID) -> Optional[dict[str, Any]]:
         "finished_at": _iso(row[8]),
         "error": row[9],
         "result_count": row[10],
+        "skipped_count": row[11] if len(row) > 11 else 0,
     }
 
 
@@ -416,6 +457,7 @@ def update_job(
     started_at: bool = False,
     finished_at: bool = False,
     result_count: Optional[int] = None,
+    skipped_count: Optional[int] = None,
 ) -> None:
     fragments: list[str] = []
     params: list[Any] = []
@@ -432,6 +474,9 @@ def update_job(
     if result_count is not None:
         fragments.append("result_count = %s")
         params.append(int(result_count))
+    if skipped_count is not None:
+        fragments.append("skipped_count = %s")
+        params.append(int(skipped_count))
     if not fragments:
         return
     params.append(str(job_id))

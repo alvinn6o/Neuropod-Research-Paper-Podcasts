@@ -87,4 +87,5 @@ export type JobResponse = {
   finished_at: string | null
   error: string | null
   result_count: number
+  skipped_count: number
 }
