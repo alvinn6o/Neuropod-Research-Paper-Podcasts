@@ -16,7 +16,60 @@ The project is designed as an AI engineering portfolio system, not a permanently
 
 ## Running It
 
-You need Python 3.11+ and Node 20+.
+Two ways: Docker (recommended — single command, everything wired) or local Python + Node.
+
+### Docker (recommended)
+
+You need Docker Desktop running.
+
+**First time setup:**
+
+```bash
+git clone https://github.com/alvinn6o/Neuropod-Research-Paper-Podcasts.git
+cd Neuropod-Research-Paper-Podcasts
+cp .env.example .env
+```
+
+**Start it:**
+
+```bash
+docker-compose up --build -d
+```
+
+Open http://localhost:3000.
+
+**Daily commands:**
+
+```bash
+# Start (no rebuild — fast)
+docker-compose up -d
+
+# Restart after pulling code changes (rebuilds API/worker images)
+docker-compose down && docker-compose up --build -d
+
+# Watch logs live
+docker-compose logs -f api
+
+# Stop everything (keeps your DB + episodes)
+docker-compose down
+
+# Nuke everything including users + episodes
+docker-compose down -v
+```
+
+**Verify it's up:**
+
+```bash
+curl http://localhost:8000/healthz
+```
+
+Should print `{"status":"ok"}`.
+
+### Local (no Docker)
+
+You need Python 3.11+ and Node 20+ on your machine.
+
+**First time setup:**
 
 ```bash
 git clone https://github.com/alvinn6o/Neuropod-Research-Paper-Podcasts.git
@@ -27,24 +80,34 @@ pip install -r requirements.txt
 cd frontend && npm install && cd ..
 ```
 
-Start the backend:
+**Run it (two terminals):**
 
 ```bash
+# Terminal 1 — API
 python -m uvicorn api.main:app --reload --port 8000
 ```
 
-Start the frontend:
-
 ```bash
+# Terminal 2 — frontend
 cd frontend && npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. Postgres is optional locally — the app falls back to a SQLite file at `data/neuropod.sqlite3` if `NEUROPOD_DATABASE_URL` is empty.
 
-Or run the API, frontend, and Postgres with Docker:
+### Useful one-liners
 
 ```bash
-docker-compose up
+# Run the test suite (40 tests, ~1s, no API calls)
+make test
+
+# Type-check the frontend
+make typecheck
+
+# Remove any duplicate episodes (one-shot cleanup)
+make dedupe
+
+# Run the optional LLM-as-judge eval (costs API credits, requires OPENAI_API_KEY)
+make eval
 ```
 
 ## API Keys
