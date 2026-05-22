@@ -22,7 +22,8 @@ export type Episode = {
   llm_provider: string
   qa_status: string
   created_at: string | null
-  audio_url: string
+  audio_ready: boolean
+  audio_url: string | null
   script?: string | null
   paper: Paper
 }
@@ -57,6 +58,7 @@ export type StatusResponse = {
   auth_mode: string
   authenticated: boolean
   audio_backend: string
+  generate_audio_on_pipeline: boolean
   live_discovery: boolean
   discovery_window_days: number
   scheduler_enabled: boolean

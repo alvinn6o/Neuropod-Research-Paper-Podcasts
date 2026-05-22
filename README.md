@@ -1,24 +1,24 @@
 # Neuropod
 
-Turns recent arXiv papers into short narrated podcast episodes. You set a few research topics, the app pulls fresh papers in your areas, ranks them, generates a 6-9 minute audio brief grounded in the paper, and hands you an RSS feed so you can listen in any podcast app.
+Neuropod turns recent arXiv papers into citation-grounded, audio-ready research scripts. Users set research topics and optional arXiv categories; the system discovers papers, extracts sections from PDFs, chunks and embeds the text, retrieves relevant context, and generates a 6-9 minute narrated script. Audio is a separate optional step: after a script exists, the app can synthesize TTS audio and attach it to the episode/feed.
 
-It also has a web UI for browsing episodes, asking grounded follow-up questions about a paper, and tweaking your topics.
+The project is designed as an AI engineering portfolio system, not a permanently hosted SaaS. It runs locally without API keys in demo mode, and the repo includes Docker plus an AWS reference architecture/IaC scaffold for interview discussion.
 
-The app runs without any API keys (demo mode with seeded papers and a synthesized tone for audio). Add provider keys to upgrade each stage.
+## Tech Stack
 
-## Tech stack
-
-- **Backend**: Python, FastAPI, APScheduler
-- **Pipeline**: arXiv API, PyMuPDF (PDF extraction), OpenAI / Anthropic (script generation), OpenAI embeddings, ElevenLabs / OpenAI (text-to-speech)
-- **Frontend**: Next.js 16 (App Router), TypeScript, plain CSS
-- **Storage**: local JSON store (Postgres + pgvector schema included for production)
+- **Backend**: Python, FastAPI, APScheduler-ready job model
+- **Pipeline**: arXiv API, PyMuPDF section extraction, section-aware chunking, OpenAI embeddings or deterministic hash fallback, Anthropic/OpenAI/Bedrock-compatible script generation
+- **Retrieval**: in-process dense/sparse retriever today; Postgres + pgvector HNSW schema included for production retrieval
+- **Audio**: optional ElevenLabs/OpenAI TTS after script generation; demo fallback emits a short WAV tone
+- **Frontend**: Next.js 16 App Router, TypeScript, plain CSS
+- **Storage**: SQLite for zero-cost local runs; Postgres + pgvector schema for production
 - **Container**: Docker / docker-compose
 
-## Running it
+## Running It
 
 You need Python 3.11+ and Node 20+.
 
-```
+```bash
 git clone https://github.com/alvinn6o/Neuropod-Research-Paper-Podcasts.git
 cd Neuropod-Research-Paper-Podcasts
 
@@ -27,118 +27,163 @@ pip install -r requirements.txt
 cd frontend && npm install && cd ..
 ```
 
-Start the backend in one terminal:
+Start the backend:
 
-```
+```bash
 python -m uvicorn api.main:app --reload --port 8000
 ```
 
-Start the frontend in another:
+Start the frontend:
 
-```
+```bash
 cd frontend && npm run dev
 ```
 
 Open http://localhost:3000.
 
-Or run everything with Docker:
+Or run the API, frontend, and Postgres with Docker:
 
-```
+```bash
 docker-compose up
 ```
 
-## API keys (optional)
+## API Keys
 
-The app works without any keys. To get real papers and real audio, edit `.env` and add whichever keys you have.
+The app works without keys. Demo mode uses seeded papers, deterministic embeddings, fallback script generation, and optional demo audio.
 
+Add provider keys to `.env` when you want real model/audio calls:
+
+```bash
+ANTHROPIC_API_KEY=              # script generation, preferred direct provider
+OPENAI_API_KEY=                 # embeddings, script fallback, TTS fallback
+ELEVENLABS_API_KEY=             # optional higher-quality narration
+NEUROPOD_LIVE_DISCOVERY=true    # fetch live arXiv papers instead of demo catalog
 ```
-ANTHROPIC_API_KEY=         # script generation (preferred)
-OPENAI_API_KEY=            # script generation (fallback) + embeddings + TTS fallback
-ELEVENLABS_API_KEY=        # better-sounding narration
-NEUROPOD_LIVE_DISCOVERY=true   # fetch live papers from arXiv instead of the demo catalog
+
+Audio is intentionally not part of the default pipeline run:
+
+```bash
+NEUROPOD_GENERATE_AUDIO_ON_PIPELINE=false
 ```
 
-The status badge in the top right of the UI flips from "demo" to "live" when real providers are wired. If a provider call fails (bad key, rate limit, etc.) the badge shows a warning and you can hover to see the error.
+Use the UI's episode page, `POST /episodes/{id}/audio`, or `python scripts/run_pipeline.py --with-audio` when you want TTS generated.
 
-There's no signup, no Anthropic/OpenAI/ElevenLabs login flow inside the app — you paste keys directly into `.env`. Costs roughly land around $0.02 per script (LLM) plus $0.03 to $0.15 per episode for TTS depending on which provider you use.
+This portfolio build uses operator-level provider keys from environment variables. It does not include an in-app user BYOK key vault.
 
-## Architecture
+## Reference AWS Architecture
+
+This repo is not currently deployed to AWS. The AWS path is documented and scaffolded so the architecture can be discussed and redeployed later without keeping idle resources running.
 
 ```mermaid
 flowchart TB
   user(["User browser"])
-  vercel[("Next.js frontend")]
-  cf["CloudFront<br/>(audio CDN)"]
-  apigw["API Gateway / ALB"]
-  api["FastAPI<br/>(Lambda or ECS)"]
-  cognito[("Cognito<br/>user pool")]
-  worker["Pipeline worker<br/>(Fargate Spot)"]
-  ecr[("ECR<br/>container image")]
-  eb["EventBridge<br/>daily cron"]
-  pg[("Postgres + pgvector<br/>HNSW index<br/>(users, episodes,<br/>chunks, jobs)")]
-  s3["S3<br/>audio + papers"]
-  pstore["Parameter Store<br/>MASTER_KEY"]
-  llm["Claude<br/>(Bedrock or direct)"]
-  tts["ElevenLabs / OpenAI TTS"]
+  web[("Next.js frontend")]
+  apigw["API Gateway or ALB"]
+  api["FastAPI API<br/>(Lambda container or ECS service)"]
+  cognito[("Cognito<br/>optional user auth")]
+  worker["Pipeline worker<br/>(ECS Fargate task)"]
+  ecr[("ECR<br/>API + worker images")]
+  eb["EventBridge<br/>optional scheduled runs"]
+  pg[("Postgres + pgvector<br/>papers, chunks, jobs, episodes")]
+  s3["S3<br/>optional audio/PDF storage"]
+  ssm["Parameter Store<br/>provider config and secrets"]
+  iam["IAM roles<br/>least-privilege task access"]
+  bedrock["Bedrock Claude<br/>optional script provider"]
+  direct["Anthropic/OpenAI APIs<br/>direct provider path"]
+  kb["Bedrock Knowledge Bases<br/>evaluated alternative RAG path"]
+  tts["ElevenLabs/OpenAI TTS<br/>optional audio"]
   arxiv["arXiv API"]
 
-  user --> vercel
-  user --> cf
-  vercel -->|JWT| apigw
+  user --> web
+  web --> apigw
   apigw --> api
   api <--> cognito
   api <--> pg
-  api --> pstore
-  cf --> s3
-  api -->|enqueue job| worker
-  eb -->|nightly| worker
+  api --> ssm
+  api -->|enqueue script/audio jobs| worker
+  eb -->|scheduled refresh| worker
   worker <-- ecr
+  worker --> iam
   worker <--> pg
-  worker -->|user keys, decrypted| llm
-  worker -->|user keys, decrypted| tts
   worker --> arxiv
-  worker -->|upload mp3| s3
+  worker --> bedrock
+  worker --> direct
+  worker --> tts
+  worker --> s3
+  kb -. managed RAG option, not default .-> bedrock
 ```
 
-**Two-tier compute**: Lambda/ECS for fast web requests, Fargate Spot for long pipeline runs. State lives in Postgres so the tiers stay decoupled.
+Why pgvector instead of keeping Bedrock Knowledge Bases live: Knowledge Bases depend on OpenSearch Serverless, which has an idle cost floor. For a portfolio system, Postgres + pgvector keeps local and production paths cheaper while still demonstrating vector retrieval design. Bedrock Knowledge Bases remain a reasonable enterprise alternative if the managed ingestion/retrieval workflow is worth the cost.
 
-## How it works
+See [infra/aws/README.md](infra/aws/README.md) for the AWS service mapping and [infra/aws/terraform](infra/aws/terraform) for a non-applied Terraform scaffold.
 
-1. Pulls candidate papers from arXiv filtered to your topics and a window (default last 7 days).
-2. Scores them by recency, citation velocity, and how well they match your topics. Past listening behavior also nudges the ranking.
-3. Downloads the PDF, splits it into sections (Abstract, Methods, Results, etc.), chunks each section, and embeds the chunks.
-4. Retrieves the most relevant chunks for the paper's topic, sends them to the LLM with a structured prompt, gets back a 800-1200 word script.
-5. Runs a quick QA check, sends the script to TTS, caches the audio on disk.
-6. Episodes show up in the feed and the RSS endpoint at `/feed/<slug>`.
+## How It Works
 
-You can ask follow-up questions on any episode page — the same retriever finds relevant chunks and shows them as citations under the answer.
+1. Pulls candidate papers from arXiv filtered to user topics, arXiv categories, and a discovery window.
+2. Scores papers by recency, topic affinity, citation signal, and prior listening feedback.
+3. Extracts PDF sections with PyMuPDF, chunks each section, and embeds chunks.
+4. Retrieves relevant chunks and sends them to the script writer with a grounded prompt.
+5. Persists the generated script, paper metadata, chunks, QA status, and estimated runtime.
+6. Optionally synthesizes TTS audio for an existing script and stores the audio on disk or S3.
+7. RSS feed items include audio enclosures only for episodes with generated audio.
+
+Follow-up Q&A uses the same indexed paper chunks and returns citation excerpts under each answer.
+
+## Evaluation
+
+The retriever has a checked-in benchmark fixture for the Mamba paper (`arXiv:2312.00752`):
+
+```bash
+pytest tests/test_recall.py -q -s
+```
+
+Current deterministic fixture results (1536-dim hash embeddings, 63 chunks across 7 sections):
+
+- recall@1: 58.3%
+- recall@5: 83.3%
+- recall@10: 83.3%
+- MRR: 0.692
+
+The full deterministic test suite covers API smoke tests, auth/session behavior, topic/category CRUD, chunking invariants, retriever behavior, QA heuristics, and the script-first/audio-optional episode flow.
+
+```bash
+pytest tests/ -q
+```
 
 ## Layout
 
-```
-api/                FastAPI app, routes, storage, audio cache
+```text
+api/                FastAPI app, routes, DB helpers, audio storage
 pipeline/
-  discover/         arXiv client, citation enrichment, ranker, affinity
+  discover/         arXiv client, ranker, affinity, citation-signal interface
   ingest/           PDF extraction, section-aware chunking
-  generate/         Embedder, retriever, script writer, QA
-  synthesize/       TTS providers, audio post-processing
+  generate/         Embedders, retriever, script writer, QA
+  synthesize/       Optional TTS providers and audio helpers
 frontend/
   src/app/          Next.js pages
-  src/components/   UI components (player, chat, topic editor, etc.)
-db/schema.sql       Postgres + pgvector schema for production
-scripts/            CLI helpers (seed, run pipeline)
+  src/components/   UI components: player, chat, topic editor, command palette
+db/schema.sql       Postgres + pgvector schema
+eval/               Recall fixture generation and optional LLM-as-judge eval
+infra/aws/          AWS reference architecture and Terraform scaffold
+scripts/            CLI helpers
 ```
 
-## Keyboard shortcuts
+## Interview Positioning
 
-- `Space` — play / pause
-- `J` or `←` — back 15 seconds
-- `L` or `→` — forward 30 seconds
-- `⌘K` or `/` — open command palette
-- `?` — show shortcuts overlay
+The accurate one-liner:
 
-Click the speed indicator on the player (`1×`) to cycle through 0.85× → 1× → 1.25× → 1.5× → 1.75× → 2×.
+> Neuropod is a script-first RAG system for tracking research papers: it discovers arXiv papers, extracts and chunks PDFs, benchmarks retrieval on a real paper, generates grounded narrated scripts, and can optionally synthesize podcast audio. I have not kept it deployed on AWS, but I designed the AWS path around ECS/Fargate, ECR, IAM roles, Parameter Store, S3, Bedrock Claude, and an evaluated Bedrock Knowledge Bases alternative.
+
+## Keyboard Shortcuts
+
+- `Space` - play / pause
+- `J` or `Left Arrow` - back 15 seconds
+- `L` or `Right Arrow` - forward 30 seconds
+- `Cmd+K` or `/` - open command palette
+- `?` - show shortcuts overlay
+
+Click the speed indicator on the player (`1x`) to cycle through 0.85x -> 1x -> 1.25x -> 1.5x -> 1.75x -> 2x.
 
 ## License
 
-MIT.
+MIT

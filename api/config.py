@@ -46,6 +46,7 @@ class Settings:
     live_discovery: bool
     auth_mode: str
     audio_backend: str
+    generate_audio_on_pipeline: bool
     s3_bucket: str
     database_url: str
     daily_pipeline_limit: int
@@ -75,6 +76,7 @@ def get_settings() -> Settings:
         live_discovery=_env_flag("NEUROPOD_LIVE_DISCOVERY", False),
         auth_mode=(os.getenv("NEUROPOD_AUTH_MODE") or "stub").lower(),
         audio_backend=(os.getenv("NEUROPOD_AUDIO_BACKEND") or "disk").lower(),
+        generate_audio_on_pipeline=_env_flag("NEUROPOD_GENERATE_AUDIO_ON_PIPELINE", False),
         s3_bucket=os.getenv("NEUROPOD_S3_BUCKET", ""),
         database_url=os.getenv("NEUROPOD_DATABASE_URL", ""),
         daily_pipeline_limit=int(os.getenv("NEUROPOD_DAILY_PIPELINE_LIMIT", "20")),

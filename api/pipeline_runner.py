@@ -1,12 +1,14 @@
-"""Pipeline runner — turns a job row into actual database rows.
+"""Pipeline runner - turns a job row into actual database rows.
 
 Used by:
   * /pipeline/run web handler (synchronous, dev mode)
   * pipeline.worker CLI (Fargate task entrypoint, prod mode)
 
 Provider keys come from operator-level env vars (ANTHROPIC_API_KEY,
-OPENAI_API_KEY, ELEVENLABS_API_KEY) or — for Bedrock — from the task's
-IAM role when NEUROPOD_BEDROCK_OPERATOR=true.
+OPENAI_API_KEY, ELEVENLABS_API_KEY) or, for Bedrock, from the task's
+IAM role when NEUROPOD_BEDROCK_OPERATOR=true. Script generation and TTS are
+separate: the pipeline persists scripts first, and audio can be synthesized
+on demand or enabled explicitly for a run.
 """
 from __future__ import annotations
 
@@ -30,8 +32,9 @@ def run_for_user(
     episode_count: int,
     window_days: int,
     categories: list[str] | None = None,
+    synthesize_audio: bool = False,
 ) -> dict[str, Any]:
-    """Run the pipeline for one user. Persists papers, chunks, episodes, audio."""
+    """Run the pipeline for one user. Persists papers, chunks, and scripts."""
 
     feedback = store_db.feedback_for_user(user_id)
     prior = store_db.list_episodes(user_id, limit=24)
@@ -60,9 +63,8 @@ def run_for_user(
             continue
         store_db.replace_chunks_for_paper(new_paper_id, chunks)
 
-    # episodes — synth audio per episode and store
+    # Episodes are script-first. Audio is optional and can be generated later.
     inserted_ids: list[uuid.UUID] = []
-    tts = TTSProvider()
     for episode in result["episodes"]:
         new_paper_id = paper_id_map.get(episode["paper_id"])
         if new_paper_id is None:
@@ -74,18 +76,34 @@ def run_for_user(
         episode_id = store_db.insert_episode(user_id, new_paper_id, episode_record)
         inserted_ids.append(episode_id)
 
-        try:
-            audio_bytes, mime, _ = tts.synthesize(episode["script"], title=episode["title"])
-            cache_key = hashlib.sha1(
-                f"{tts.provider_name}:{episode['script']}".encode()
-            ).hexdigest()
-            audio_store.store(key=cache_key, data=audio_bytes, content_type=mime)
-            store_db.update_episode_audio(episode_id, audio_key=cache_key, audio_mime=mime)
-        except Exception as exc:
-            logger.warning("audio synth failed for episode %s: %s", episode_id, exc)
+        if synthesize_audio:
+            try:
+                synthesize_episode_audio(episode_id, script=episode["script"], title=episode["title"])
+            except Exception as exc:
+                logger.warning("audio synth failed for episode %s: %s", episode_id, exc)
 
     return {
         "generated_at": result["generated_at"],
         "episode_ids": [str(i) for i in inserted_ids],
         "result_count": len(inserted_ids),
     }
+
+
+def synthesize_episode_audio(
+    episode_id: uuid.UUID,
+    *,
+    script: str,
+    title: str,
+) -> dict[str, str]:
+    """Synthesize and persist audio for an already-generated script."""
+    tts = TTSProvider()
+    audio_bytes, mime, provider = tts.synthesize(script, title=title)
+    cache_key = hashlib.sha1(f"{provider}:{script}".encode()).hexdigest()
+    audio_store.store(key=cache_key, data=audio_bytes, content_type=mime)
+    store_db.update_episode_audio(
+        episode_id,
+        audio_key=cache_key,
+        audio_mime=mime,
+        tts_provider=provider,
+    )
+    return {"audio_key": cache_key, "audio_mime": mime, "tts_provider": provider}

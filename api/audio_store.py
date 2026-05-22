@@ -2,9 +2,8 @@
 
 Switched by NEUROPOD_AUDIO_BACKEND=s3 (default 'disk').
 S3 mode reads NEUROPOD_S3_BUCKET, optional NEUROPOD_S3_PREFIX, region inferred
-from the standard AWS env / IAM. Returns CloudFront-signed URLs if
-NEUROPOD_CDN_DOMAIN + NEUROPOD_CDN_KEY_ID + NEUROPOD_CDN_PRIVATE_KEY_PATH are
-set; otherwise returns S3 presigned URLs.
+from the standard AWS env / IAM. This app returns S3 presigned URLs directly;
+CloudFront can be placed in front of the bucket in the AWS reference design.
 """
 from __future__ import annotations
 
@@ -47,7 +46,7 @@ def fetch(key: str) -> Optional[tuple[bytes, str]]:
 
 
 def url_for(key: str) -> Optional[str]:
-    """Return an externally fetchable URL — presigned S3 or local API endpoint."""
+    """Return an externally fetchable URL: presigned S3 or local API endpoint."""
     if _BACKEND == "s3" and _BUCKET:
         try:
             return _presign_s3(key)

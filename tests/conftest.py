@@ -7,11 +7,15 @@ from pathlib import Path
 
 import pytest
 
-# Force stub-mode auth and disable user-key requirement so tests can exercise
-# the pipeline with the demo fallback (no API calls).
+# Force stub-mode auth so tests can exercise the pipeline with demo providers
+# and no external API calls.
 os.environ.setdefault("NEUROPOD_AUTH_MODE", "stub")
-os.environ.setdefault("NEUROPOD_REQUIRE_USER_KEYS", "false")
 os.environ.setdefault("NEUROPOD_DATABASE_URL", "")  # force SQLite shim
+os.environ["NEUROPOD_LIVE_DISCOVERY"] = "false"
+os.environ["NEUROPOD_LLM_PROVIDER"] = "demo"
+os.environ["NEUROPOD_TTS_PROVIDER"] = "demo"
+os.environ["NEUROPOD_EMBEDDER"] = "demo"
+os.environ["NEUROPOD_GENERATE_AUDIO_ON_PIPELINE"] = "false"
 
 # Always run tests against a clean per-session SQLite file.
 _SESSION_DB = Path("data") / f"test_{uuid.uuid4().hex[:8]}.sqlite3"

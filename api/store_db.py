@@ -201,7 +201,7 @@ def insert_episode(user_id: uuid.UUID, paper_id: uuid.UUID, episode: dict[str, A
                 episode.get("qa_notes"),
                 int(episode.get("duration_secs") or 0),
                 episode.get("llm_provider", "demo"),
-                episode.get("tts_provider", "demo"),
+                episode.get("tts_provider", "none"),
                 episode.get("audio_key"),
                 episode.get("audio_mime", "audio/wav"),
             ),
@@ -263,7 +263,7 @@ def get_episode_by_slug(slug: str, episode_id: uuid.UUID) -> Optional[dict[str, 
     with cursor() as cur:
         cur.execute(
             """
-            SELECT u.id FROM users WHERE feed_slug = %s
+            SELECT id FROM users WHERE feed_slug = %s
             """,
             (slug,),
         )
@@ -274,12 +274,16 @@ def get_episode_by_slug(slug: str, episode_id: uuid.UUID) -> Optional[dict[str, 
 
 
 def update_episode_audio(
-    episode_id: uuid.UUID, *, audio_key: str, audio_mime: str
+    episode_id: uuid.UUID, *, audio_key: str, audio_mime: str, tts_provider: str
 ) -> None:
     with cursor() as cur:
         cur.execute(
-            "UPDATE episodes SET audio_key = %s, audio_mime = %s WHERE id = %s",
-            (audio_key, audio_mime, str(episode_id)),
+            """
+            UPDATE episodes
+            SET audio_key = %s, audio_mime = %s, tts_provider = %s
+            WHERE id = %s
+            """,
+            (audio_key, audio_mime, tts_provider, str(episode_id)),
         )
 
 
@@ -530,7 +534,7 @@ def _episode_row_to_dict(row: tuple) -> dict[str, Any]:
         "qa_notes": row[9],
         "duration_secs": int(row[10] or 0),
         "llm_provider": row[11] or "demo",
-        "tts_provider": row[12] or "demo",
+        "tts_provider": row[12] or "none",
         "audio_key": row[13],
         "audio_mime": row[14] or "audio/wav",
         "created_at": _iso(row[15]),

@@ -13,9 +13,11 @@ export function EpisodeCard({ episode }: Props) {
   const router = useRouter()
   const verified = episode.qa_status === "verified"
   const created = episode.created_at ? relativeTime(episode.created_at) : ""
+  const hasAudio = episode.audio_ready && Boolean(episode.audio_url)
 
   const play = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!hasAudio || !episode.audio_url) return
     window.dispatchEvent(
       new CustomEvent("neuropod:play", {
         detail: {
@@ -49,7 +51,14 @@ export function EpisodeCard({ episode }: Props) {
       <h3>{episode.title.replace(/: audio brief$/i, "")}</h3>
       <p>{episode.description}</p>
       <div className="episode-card-footer">
-        <button className="icon-button" onClick={play} type="button" aria-label="Play episode">
+        <button
+          className="icon-button"
+          disabled={!hasAudio}
+          onClick={play}
+          title={hasAudio ? "Play episode" : "Open episode to generate audio"}
+          type="button"
+          aria-label={hasAudio ? "Play episode" : "Audio not generated"}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7 5v14l12-7z" />
           </svg>
@@ -57,6 +66,7 @@ export function EpisodeCard({ episode }: Props) {
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           {created ? <span className="meta-text">{created}</span> : null}
           <span className="meta-text">{formatDuration(episode.duration_secs)}</span>
+          {!hasAudio ? <span className="meta-text">script</span> : null}
           <span className="meta-text">{episode.paper.citation_count} cites</span>
         </div>
       </div>

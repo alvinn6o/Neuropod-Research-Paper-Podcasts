@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Neuropod API",
-    description="Multi-user research-paper-to-podcast pipeline (BYOK).",
+    description="Multi-user research-paper RAG pipeline with optional podcast audio.",
     version="0.4.0",
     lifespan=lifespan,
 )
@@ -61,7 +61,7 @@ app.include_router(pipeline_router)
 
 @app.get("/health")
 def liveness() -> dict[str, str]:
-    """Liveness probe — returns 200 as long as the process is running."""
+    """Liveness probe - returns 200 as long as the process is running."""
     return {
         "status": "ok",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -71,7 +71,7 @@ def liveness() -> dict[str, str]:
 
 @app.get("/healthz")
 def readiness() -> JSONResponse:
-    """Readiness probe — verifies the database is reachable.
+    """Readiness probe - verifies the database is reachable.
 
     Use this for load-balancer health checks. Returns 503 if the DB is down so
     AWS can stop routing traffic to a pod that can't serve real requests."""

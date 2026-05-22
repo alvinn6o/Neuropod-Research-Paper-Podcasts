@@ -35,6 +35,7 @@ def main() -> None:
             topics=settings.default_topics,
             episode_count=settings.default_episode_count,
             window_days=settings.discovery_window_days,
+            synthesize_audio=settings.generate_audio_on_pipeline,
         )
         print(f"Generated {result['result_count']} demo episodes.")
     else:

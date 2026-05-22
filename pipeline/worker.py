@@ -1,12 +1,12 @@
-"""Pipeline worker — Fargate task entrypoint.
+"""Pipeline worker - Fargate task entrypoint.
 
 Usage:
   python -m pipeline.worker --job-id <uuid>
   python -m pipeline.worker --user-id <uuid> [--window 7] [--episodes 3] [--topics ...]
 
-Reads NEUROPOD_DATABASE_URL + NEUROPOD_MASTER_KEY from env.
-Loads the user's BYOK keys from Postgres, runs the pipeline, writes episodes
-+ audio. Exits non-zero on failure so ECS reports failed task to CloudWatch.
+Reads NEUROPOD_DATABASE_URL from env, runs the script pipeline, and writes
+episodes. Audio is optional via --with-audio or NEUROPOD_GENERATE_AUDIO_ON_PIPELINE.
+Exits non-zero on failure so ECS reports failed task to CloudWatch.
 """
 from __future__ import annotations
 
@@ -43,6 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--window", type=int, default=None)
     parser.add_argument("--episodes", type=int, default=None)
     parser.add_argument("--topics", nargs="*", default=None)
+    parser.add_argument("--with-audio", action="store_true", help="also synthesize TTS audio for generated scripts")
     args = parser.parse_args(argv)
 
     init_schema()
@@ -58,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
                 topics=topics,
                 episode_count=episode_count,
                 window_days=window_days,
-                require_user_keys=settings.require_user_keys,
+                synthesize_audio=args.with_audio or settings.generate_audio_on_pipeline,
             )
             store_db.update_job(
                 job_id,
@@ -91,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
             topics=topics,
             episode_count=episode_count,
             window_days=window_days,
+            synthesize_audio=args.with_audio or settings.generate_audio_on_pipeline,
         )
         store_db.update_job(
             job_id, status="done", finished_at=True, result_count=result["result_count"]

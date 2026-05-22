@@ -31,6 +31,7 @@ def _run_job(job_id: uuid.UUID, user_id: uuid.UUID, topics: list[str], episode_c
             topics=topics,
             episode_count=episode_count,
             window_days=window,
+            synthesize_audio=get_settings().generate_audio_on_pipeline,
         )
         store_db.update_job(
             job_id,

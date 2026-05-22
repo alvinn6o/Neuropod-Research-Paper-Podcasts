@@ -6,7 +6,8 @@ import { use, useEffect, useState } from "react"
 import { AuthGuard } from "@/components/AuthGuard"
 import { DeepDiveChat } from "@/components/DeepDiveChat"
 import { PlayButton } from "@/components/PlayButton"
-import { getEpisode } from "@/lib/api"
+import { emitToast } from "@/components/Toast"
+import { generateEpisodeAudio, getEpisode } from "@/lib/api"
 import { splitScript } from "@/lib/script"
 import { Episode } from "@/lib/types"
 
@@ -24,6 +25,7 @@ export default function EpisodePage({ params }: Props) {
 function EpisodeView({ id }: { id: string }) {
   const [episode, setEpisode] = useState<Episode | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [audioBusy, setAudioBusy] = useState(false)
 
   useEffect(() => {
     getEpisode(id).then(setEpisode).catch((err) => setError(err.message))
@@ -34,11 +36,26 @@ function EpisodeView({ id }: { id: string }) {
 
   const minutes = Math.max(1, Math.round(episode.duration_secs / 60))
   const verified = episode.qa_status === "verified"
+  const hasAudio = episode.audio_ready && Boolean(episode.audio_url)
   const paragraphs = splitScript(episode.script ?? "")
+
+  const generateAudio = async () => {
+    if (audioBusy) return
+    setAudioBusy(true)
+    try {
+      const updated = await generateEpisodeAudio(episode.id)
+      setEpisode(updated)
+      emitToast("Audio generated", "success")
+    } catch (err) {
+      emitToast(err instanceof Error ? err.message : "Audio generation failed", "error")
+    } finally {
+      setAudioBusy(false)
+    }
+  }
 
   return (
     <div className="stack-gap">
-      <Link className="back-link" href="/">← Back</Link>
+      <Link className="back-link" href="/">Back</Link>
 
       <section className="detail-grid">
         <div className="card detail-card">
@@ -49,7 +66,7 @@ function EpisodeView({ id }: { id: string }) {
                 {verified ? "QA OK" : "QA FLAG"}
               </span>
               <span className="pill">{minutes}m</span>
-              <span className="pill">{episode.tts_provider}</span>
+              <span className="pill">{hasAudio ? episode.tts_provider : "script only"}</span>
             </div>
           </div>
           <h1>{episode.title.replace(/: audio brief$/i, "")}</h1>
@@ -64,10 +81,18 @@ function EpisodeView({ id }: { id: string }) {
           <div className="divider" />
 
           <div className="row-between">
-            <PlayButton episode={episode} />
+            {hasAudio ? (
+              <PlayButton episode={episode} />
+            ) : (
+              <button className="button button-primary" disabled={audioBusy} onClick={generateAudio} type="button">
+                {audioBusy ? "Generating audio..." : "Generate audio"}
+              </button>
+            )}
             <div style={{ display: "flex", gap: 8 }}>
               <a className="button button-secondary" href={episode.paper.pdf_url} rel="noreferrer" target="_blank">PDF</a>
-              <a className="button button-ghost" href={episode.audio_url} rel="noreferrer" target="_blank">Audio</a>
+              {hasAudio && episode.audio_url ? (
+                <a className="button button-ghost" href={episode.audio_url} rel="noreferrer" target="_blank">Audio</a>
+              ) : null}
             </div>
           </div>
         </div>

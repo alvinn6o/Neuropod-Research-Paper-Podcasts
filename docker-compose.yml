@@ -27,7 +27,7 @@ services:
       NEUROPOD_FRONTEND_URL: http://localhost:3000
       NEUROPOD_AUTH_MODE: stub
       NEUROPOD_AUDIO_BACKEND: disk
-      NEUROPOD_REQUIRE_USER_KEYS: "true"
+      NEUROPOD_GENERATE_AUDIO_ON_PIPELINE: "false"
       ENABLE_SCHEDULER: "false"
       NEUROPOD_CORS_ORIGINS: http://localhost:3000
     env_file:

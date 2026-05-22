@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS user_categories (
 );
 
 -- ============================================================================
--- Papers (shared across users — same arXiv paper isn't re-extracted per user)
+-- Papers (shared across users - same arXiv paper isn't re-extracted per user)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS papers (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_chunks_paper ON paper_chunks(paper_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON paper_chunks USING hnsw (embedding vector_cosine_ops);
 
 -- ============================================================================
--- Episodes (per-user — script + audio belong to whoever generated them)
+-- Episodes (per-user - script + optional audio belong to whoever generated them)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS episodes (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -93,8 +93,8 @@ CREATE TABLE IF NOT EXISTS episodes (
   qa_notes        TEXT,
   duration_secs   INT NOT NULL DEFAULT 0,
   llm_provider    TEXT NOT NULL DEFAULT 'demo',
-  tts_provider    TEXT NOT NULL DEFAULT 'demo',
-  audio_key       TEXT,                   -- s3 object key (or local cache key)
+  tts_provider    TEXT NOT NULL DEFAULT 'none',
+  audio_key       TEXT,                   -- null until optional TTS generation runs
   audio_mime      TEXT NOT NULL DEFAULT 'audio/wav',
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -118,7 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_feedback_user_created
   ON feedback_events(user_id, created_at DESC);
 
 -- ============================================================================
--- Async pipeline jobs (web → worker)
+-- Async pipeline jobs (web -> worker)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS pipeline_jobs (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),

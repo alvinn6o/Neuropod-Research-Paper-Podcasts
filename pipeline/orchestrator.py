@@ -15,7 +15,6 @@ from .ingest.chunker import SectionAwareChunker
 from .ingest.pdf_extractor import PDFExtractor
 from .models import EpisodeDraft
 from .synthesize.audio_processor import AudioProcessor
-from .synthesize.tts import TTSProvider
 
 
 def build_demo_payload(
@@ -26,12 +25,11 @@ def build_demo_payload(
     prior_episodes: Optional[list[dict]] = None,
     categories: Optional[list[str]] = None,
 ) -> dict:
-    """Run the full discover→script→audio pipeline.
+    """Run discovery, extraction, retrieval, script generation, and QA.
 
-    `keys` is a {provider: plaintext} dict — typically the user's BYOK keys
-    decrypted at request time. `require_user_keys=True` disables env fallback,
-    so a user with no keys can never accidentally call providers on the
-    operator's bill.
+    Audio synthesis is deliberately handled as a separate optional step so the
+    core research artifact remains a grounded script even when no TTS provider
+    is configured.
     """
     from .discover.affinity import compute_affinity
 
@@ -44,7 +42,6 @@ def build_demo_payload(
     writer = ScriptWriter()
     checker = QAChecker()
     audio = AudioProcessor()
-    tts = TTSProvider()
 
     affinity_scores = compute_affinity(feedback_events or [], prior_episodes or [])
 
@@ -107,7 +104,7 @@ def build_demo_payload(
             qa_status=qa_status,
             qa_notes=qa_notes,
             duration_secs=audio.estimate_duration_secs(script),
-            tts_provider=tts.provider_name,
+            tts_provider="none",
             created_at=generated_at,
         )
         episode_dict = episode.to_dict()

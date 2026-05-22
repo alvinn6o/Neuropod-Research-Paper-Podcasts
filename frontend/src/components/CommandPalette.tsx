@@ -66,6 +66,7 @@ export function CommandPalette() {
   }, [open])
 
   const playEpisode = (episode: Episode) => {
+    if (!episode.audio_ready || !episode.audio_url) return
     window.dispatchEvent(
       new CustomEvent("neuropod:play", {
         detail: {
@@ -112,10 +113,10 @@ export function CommandPalette() {
     () => episodes.map((episode) => ({
       id: `ep-${episode.id}`,
       label: episode.title,
-      hint: episode.topic,
+      hint: episode.audio_ready ? episode.topic : "script",
       group: "episodes" as const,
       run: () => {
-        playEpisode(episode)
+        if (episode.audio_ready) playEpisode(episode)
         router.push(`/episode/${episode.id}`)
       }
     })),

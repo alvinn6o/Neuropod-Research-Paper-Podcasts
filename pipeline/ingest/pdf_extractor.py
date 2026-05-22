@@ -9,16 +9,31 @@ from ..models import PaperCandidate
 
 logger = logging.getLogger("neuropod.pdf")
 
+# Header patterns. Most ML papers use numbered sections like "3. Methodology" or
+# unnumbered "Methods". Order matters — earlier matches win when multiple regexes
+# could match (e.g. "Experimental Setup" matches both 'experiments' and 'methods').
+_NUM = r"(\d+(?:\.\d+)*\.?\s*)?"  # optional leading "3.", "3.1", "3.1.2."
 SECTION_HEADERS = [
     ("abstract", re.compile(r"^\s*abstract\s*$", re.IGNORECASE)),
-    ("introduction", re.compile(r"^\s*(1\.?\s*)?introduction\s*$", re.IGNORECASE)),
-    ("background", re.compile(r"^\s*(2\.?\s*)?(background|related work|prior work)\s*$", re.IGNORECASE)),
-    ("methods", re.compile(r"^\s*(\d+\.?\s*)?(method|methods|approach|methodology|model)\s*$", re.IGNORECASE)),
-    ("experiments", re.compile(r"^\s*(\d+\.?\s*)?(experiments?|setup|evaluation)\s*$", re.IGNORECASE)),
-    ("results", re.compile(r"^\s*(\d+\.?\s*)?(results?|findings?)\s*$", re.IGNORECASE)),
-    ("discussion", re.compile(r"^\s*(\d+\.?\s*)?(discussion|analysis)\s*$", re.IGNORECASE)),
-    ("limitations", re.compile(r"^\s*(\d+\.?\s*)?limitations?\s*$", re.IGNORECASE)),
-    ("conclusion", re.compile(r"^\s*(\d+\.?\s*)?(conclusion|conclusions?|summary)\s*$", re.IGNORECASE)),
+    ("introduction", re.compile(rf"^\s*{_NUM}introduction\s*$", re.IGNORECASE)),
+    ("background", re.compile(rf"^\s*{_NUM}(background|related work|prior work|preliminaries)\s*$", re.IGNORECASE)),
+    ("methods", re.compile(
+        rf"^\s*{_NUM}(method|methods|methodology|approach|approaches|model|"
+        r"architecture|framework|algorithm|design|proposed (method|approach|model)|"
+        r"implementation(\s+details)?)\s*$", re.IGNORECASE)),
+    ("experiments", re.compile(
+        rf"^\s*{_NUM}(experiments?|experimental (setup|methodology)|"
+        r"setup|evaluation(\s+methodology)?|empirical evaluation|"
+        r"protocol|ablation(s|\s+study|\s+studies)?)\s*$", re.IGNORECASE)),
+    ("results", re.compile(
+        rf"^\s*{_NUM}(results?|findings?|main results?|empirical results?|"
+        r"observations?|performance)\s*$", re.IGNORECASE)),
+    ("discussion", re.compile(rf"^\s*{_NUM}(discussion|analysis|takeaways?)\s*$", re.IGNORECASE)),
+    ("limitations", re.compile(rf"^\s*{_NUM}(limitations?|threats to validity)\s*$", re.IGNORECASE)),
+    ("conclusion", re.compile(
+        rf"^\s*{_NUM}(conclusion|conclusions?|summary|"
+        r"conclusion(\s+and\s+future\s+work)?|"
+        r"concluding remarks)\s*$", re.IGNORECASE)),
 ]
 STOP_HEADERS = [
     re.compile(r"^\s*references\s*$", re.IGNORECASE),
@@ -36,6 +51,7 @@ class PDFExtractor:
         self.fetch_timeout = fetch_timeout
 
     def extract_sections(self, candidate: PaperCandidate) -> dict[str, str]:
+        # Seed-catalog fast path: the demo PaperCandidate ships pre-extracted sections.
         if candidate.sections and any(len(v) > 200 for v in candidate.sections.values()):
             return candidate.sections
 
@@ -45,8 +61,7 @@ class PDFExtractor:
                 if pdf_bytes:
                     sections = self._extract_from_pdf(pdf_bytes)
                     if sections and sum(len(v) for v in sections.values()) > 600:
-                        if "abstract" not in sections and candidate.abstract:
-                            sections["abstract"] = candidate.abstract
+                        sections = _normalize_sections(sections, candidate.abstract)
                         return sections
             except Exception as exc:
                 logger.warning("pdf extraction failed for %s: %s", candidate.arxiv_id, exc)
@@ -114,3 +129,33 @@ class PDFExtractor:
             if pattern.match(line):
                 return label
         return None
+
+
+def _normalize_sections(sections: dict[str, str], candidate_abstract: str) -> dict[str, str]:
+    """Stitch the abstract back in + guard against the 'everything-tagged-methods' failure mode.
+
+    Section header detection is heuristic — many papers use unconventional
+    headings ('Approach', '3.2 Proposed Framework') that our regex misses.
+    When that happens the parser tends to dump most of the body into whichever
+    section header DID match (often 'methods'), which falsely amplifies the
+    section_bonus reranking. If we ended up with a single section that
+    contains the bulk of the paper, re-tag it as a generic 'body' so retrieval
+    doesn't over-trust the 'methods' label.
+    """
+    cleaned = {k: v for k, v in sections.items() if v}
+
+    # Always ensure the abstract is present (PDF parse may have missed it,
+    # but the arXiv API gave us a clean one).
+    if "abstract" not in cleaned and candidate_abstract:
+        cleaned["abstract"] = candidate_abstract.strip()
+
+    # If only ONE substantive section made it through, the parser likely
+    # misclassified everything. Re-tag the big bucket as 'body' to neutralize
+    # section_bonus over-weighting.
+    substantive = [k for k, v in cleaned.items() if len(v) > 1500 and k != "abstract"]
+    if len(substantive) == 1 and len(cleaned) <= 2:
+        big_key = substantive[0]
+        body_text = cleaned.pop(big_key)
+        cleaned["body"] = body_text
+
+    return cleaned

@@ -87,7 +87,7 @@ def upsert_user_by_email(
     """Insert or fetch the user row. Returns (user_id, assigned_feed_slug)."""
     email = email.strip().lower()
     with cursor() as cur:
-        cur.execute("SELECT id, feed_slug FROM users WHERE email = ?", (email,))
+        cur.execute("SELECT id, feed_slug FROM users WHERE email = %s", (email,))
         row = cur.fetchone()
         if row:
             return _as_uuid(row[0]), row[1]
@@ -97,14 +97,14 @@ def upsert_user_by_email(
         candidate = feed_slug
         suffix = 0
         while True:
-            cur.execute("SELECT 1 FROM users WHERE feed_slug = ?", (candidate,))
+            cur.execute("SELECT 1 FROM users WHERE feed_slug = %s", (candidate,))
             if not cur.fetchone():
                 break
             suffix += 1
             candidate = f"{feed_slug}-{suffix}"
 
         cur.execute(
-            "INSERT INTO users (id, email, feed_slug) VALUES (?, ?, ?)",
+            "INSERT INTO users (id, email, feed_slug) VALUES (%s, %s, %s)",
             (str(user_id), email, candidate),
         )
         return user_id, candidate
@@ -113,7 +113,7 @@ def upsert_user_by_email(
 def get_user_by_slug(slug: str) -> Optional[dict[str, Any]]:
     with cursor() as cur:
         cur.execute(
-            "SELECT id, email, feed_slug, display_name FROM users WHERE feed_slug = ?",
+            "SELECT id, email, feed_slug, display_name FROM users WHERE feed_slug = %s",
             (slug,),
         )
         row = cur.fetchone()
@@ -123,10 +123,10 @@ def get_user_by_slug(slug: str) -> Optional[dict[str, Any]]:
 
 
 # ----------------------------------------------------------------------------
-# SQLite local shim — keeps the dev story painless.
+# SQLite local shim - keeps the dev story painless.
 #   * Same SQL surface area we use in the Postgres path
-#   * Transparent JSON ↔ list for array columns
-#   * Vector columns stored as JSON text (no similarity search — falls back to sparse)
+#   * Transparent JSON <-> list for array columns
+#   * Vector columns stored as JSON text (no similarity search - falls back to sparse)
 # ----------------------------------------------------------------------------
 
 _PG_TO_SQLITE = [

@@ -12,14 +12,14 @@ from .bedrock import BedrockClient
 logger = logging.getLogger("neuropod.scriptwriter")
 
 SYSTEM_PROMPT = (
-    "You are a senior research analyst writing 6-9 minute audio briefs for a daily AI research "
+    "You are a senior research analyst writing 6-9 minute audio-ready scripts for a daily AI research "
     "podcast. Write conversational, technically accurate narration grounded ONLY in the provided "
     "paper content. Open with the single most surprising or counterintuitive result. Then explain: "
-    "(1) the problem the paper addresses and why it matters, (2) the core method or mechanism — "
+    "(1) the problem the paper addresses and why it matters, (2) the core method or mechanism - "
     "in plain language, but with specifics, no hand-waving, (3) the key quantitative results "
     "and how they were measured, (4) limitations the authors call out or that follow from the "
-    "method, (5) what this means for the field — what becomes possible or what's now in question. "
-    "Use 800–1200 words. No bullet points, no markdown, no headers — pure spoken prose, broken "
+    "method, (5) what this means for the field - what becomes possible or what's now in question. "
+    "Use 800-1200 words. No bullet points, no markdown, no headers - pure spoken prose, broken "
     "into 4-7 paragraphs. Do not invent results that aren't in the source material. Do not pad."
 )
 
@@ -39,7 +39,7 @@ class ScriptWriter:
     ) -> tuple[str, str]:
         prompt = self._build_prompt(candidate, retrieved_chunks, audience_topics)
 
-        # Preference order: explicit override → bedrock (if creds) → anthropic → openai → demo
+        # Preference order: explicit override, bedrock, anthropic, openai, demo.
         if self.provider == "bedrock" and self.bedrock_creds:
             try:
                 return self._call_bedrock(prompt), "bedrock"
@@ -178,8 +178,8 @@ def _operator_bedrock() -> dict[str, str] | None:
     """Bedrock can also be configured at the infra level (IAM role on Lambda/Fargate).
 
     When NEUROPOD_BEDROCK_OPERATOR=true and AWS creds are inferred from the
-    environment, allow Bedrock as an operator-mode fallback. (Off by default —
-    BYOK keeps the operator off the bill.)"""
+    environment, allow Bedrock as an operator-mode fallback. Off by default so
+    local demos do not make AWS calls accidentally."""
     if os.getenv("NEUROPOD_BEDROCK_OPERATOR", "").strip().lower() not in {"1", "true", "yes"}:
         return None
     region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")

@@ -48,6 +48,7 @@ def get_status(user: AuthUser | None = OptionalUser) -> dict:
         "live_discovery": settings.live_discovery,
         "discovery_window_days": settings.discovery_window_days,
         "audio_backend": settings.audio_backend,
+        "generate_audio_on_pipeline": settings.generate_audio_on_pipeline,
         "scheduler_enabled": settings.enable_scheduler,
         "providers": _detect_providers(),
         "provider_calls": snapshot(),

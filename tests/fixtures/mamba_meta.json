@@ -10,12 +10,13 @@
       "cs.LG"
     ]
   },
-  "chunk_count": 56,
+  "chunk_count": 63,
   "embedder_backend": "HashEmbedder",
-  "embedding_dim": 48,
+  "embedding_dim": 1536,
   "sections": {
     "abstract": 1666,
     "introduction": 8000,
+    "experiments": 3822,
     "methods": 8000,
     "discussion": 2721,
     "conclusion": 782,

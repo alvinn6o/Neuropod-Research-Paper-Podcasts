@@ -15,7 +15,7 @@ logger = logging.getLogger("neuropod.embed")
 
 
 class HashEmbedder:
-    def __init__(self, dimensions: int = 48) -> None:
+    def __init__(self, dimensions: int = 1536) -> None:
         self.dimensions = dimensions
 
     def embed_chunks(self, chunks: list[PaperChunk]) -> list[PaperChunk]:

@@ -31,7 +31,8 @@ class EpisodeResponse(BaseModel):
     llm_provider: str = "demo"
     qa_status: str
     created_at: Optional[str] = None
-    audio_url: str
+    audio_ready: bool = False
+    audio_url: Optional[str] = None
     paper: PaperResponse
     script: Optional[str] = None
 

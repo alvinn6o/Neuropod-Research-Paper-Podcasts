@@ -108,6 +108,11 @@ export async function askEpisode(id: string, question: string) {
   })
 }
 
+export async function generateEpisodeAudio(id: string, force = false) {
+  const query = force ? "?force=true" : ""
+  return fetchJson<Episode>(`/episodes/${id}/audio${query}`, { method: "POST" })
+}
+
 export async function getStatus() {
   return fetchJson<StatusResponse>("/status")
 }

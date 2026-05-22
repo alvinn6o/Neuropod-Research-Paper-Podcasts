@@ -1,6 +1,24 @@
 """API smoke + integration tests. No external API calls."""
 from __future__ import annotations
 
+import uuid
+
+
+def _generate_one_script(client, auth_headers) -> dict:
+    from api.pipeline_runner import run_for_user
+
+    user_id = uuid.UUID(client.get("/me", headers=auth_headers).json()["id"])
+    result = run_for_user(
+        user_id,
+        topics=["retrieval augmented generation"],
+        episode_count=1,
+        window_days=7,
+    )
+    assert result["result_count"] == 1
+    episode_id = result["episode_ids"][0]
+    response = client.get(f"/episodes/{episode_id}", headers=auth_headers)
+    assert response.status_code == 200
+    return response.json()
 
 def test_health_returns_ok(client):
     assert client.get("/health").status_code == 200
@@ -99,3 +117,36 @@ def test_feed_returns_xml(client, auth_headers):
 
 def test_feed_unknown_slug_404s(client):
     assert client.get("/feed/no-such-user").status_code == 404
+
+
+def test_pipeline_persists_script_without_audio_by_default(client, auth_headers):
+    episode = _generate_one_script(client, auth_headers)
+
+    assert episode["script"]
+    assert episode["audio_ready"] is False
+    assert episode["audio_url"] is None
+    assert episode["tts_provider"] == "none"
+
+
+def test_audio_can_be_generated_after_script(client, auth_headers):
+    episode = _generate_one_script(client, auth_headers)
+
+    response = client.post(f"/episodes/{episode['id']}/audio", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["audio_ready"] is True
+    assert body["audio_url"]
+    assert body["tts_provider"] == "demo"
+
+    audio = client.get(body["audio_url"], headers=auth_headers)
+    assert audio.status_code == 200
+    assert audio.headers["content-type"].startswith("audio/wav")
+
+    slug = client.get("/me", headers=auth_headers).json()["feed_slug"]
+    feed = client.get(f"/feed/{slug}")
+    assert feed.status_code == 200
+    assert b"<enclosure" in feed.content
+
+    public_audio = client.get(f"/feed/{slug}/episodes/{episode['id']}/audio")
+    assert public_audio.status_code == 200
+    assert public_audio.headers["content-type"].startswith("audio/wav")

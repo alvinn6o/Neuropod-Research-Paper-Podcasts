@@ -92,6 +92,10 @@ class ArxivClient:
                     pdf_url = link.attrib.get("href", "")
                     break
 
+            # IMPORTANT: leave sections empty so PDFExtractor downloads the
+            # actual PDF and parses methods/results/limitations/etc. Setting
+            # sections={"abstract": abstract} would short-circuit the extractor
+            # and reduce all retrieval to abstract-only chunks.
             candidates.append(PaperCandidate(
                 arxiv_id=arxiv_id,
                 title=title,
@@ -102,7 +106,7 @@ class ArxivClient:
                 pdf_url=pdf_url or arxiv_url,
                 citation_count=0,
                 citation_velocity=0.0,
-                sections={"abstract": abstract},
+                sections={},
             ))
         return candidates
 
