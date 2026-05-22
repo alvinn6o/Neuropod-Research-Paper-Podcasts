@@ -19,6 +19,11 @@ class ProviderError(RuntimeError):
         self.detail = detail
 
 
+# Status codes worth retrying. 529 is Anthropic-specific ("Overloaded") and
+# they explicitly document it as retryable with backoff.
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504, 529}
+
+
 def post_json(
     *,
     provider: str,
@@ -43,7 +48,7 @@ def post_json(
             except Exception:
                 detail = str(exc)
             last = ProviderError(provider, exc.code, detail)
-            if exc.code in {429, 500, 502, 503, 504} and attempt < retries:
+            if exc.code in _RETRYABLE_STATUS and attempt < retries:
                 sleep_for = backoff ** attempt
                 logger.warning("%s retrying after %.1fs (status=%s)", provider, sleep_for, exc.code)
                 time.sleep(sleep_for)
@@ -87,7 +92,7 @@ def post_for_bytes(
             except Exception:
                 detail = str(exc)
             last = ProviderError(provider, exc.code, detail)
-            if exc.code in {429, 500, 502, 503, 504} and attempt < retries:
+            if exc.code in _RETRYABLE_STATUS and attempt < retries:
                 time.sleep(backoff ** attempt)
                 continue
             break
