@@ -18,7 +18,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Optional
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Query, status
 
 from .db import cursor, get_user_by_slug, upsert_user_by_email
 
@@ -142,7 +142,30 @@ def maybe_auth(
     return _resolve_stub(token) if _AUTH_MODE == "stub" else _resolve_cognito(token)
 
 
+def require_auth_with_query_token(
+    authorization: Optional[str] = Header(default=None),
+    token: Optional[str] = Query(default=None, alias="token"),
+) -> AuthUser:
+    """Like require_auth, but also accepts the bearer token as ?token=... query
+    param. Needed for endpoints invoked by the browser's native <audio>/<img>
+    elements, which can't attach an Authorization header. Use sparingly — query
+    tokens leak into server access logs; only use for short-lived audio URLs."""
+    raw: Optional[str] = None
+    if authorization and authorization.lower().startswith("bearer "):
+        raw = authorization.split(" ", 1)[1].strip()
+    elif token:
+        raw = token.strip()
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing bearer token")
+
+    user = _resolve_stub(raw) if _AUTH_MODE == "stub" else _resolve_cognito(raw)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
+    return user
+
+
 CurrentUser = Depends(require_auth)
+CurrentUserWithQueryToken = Depends(require_auth_with_query_token)
 OptionalUser = Depends(maybe_auth)
 
 

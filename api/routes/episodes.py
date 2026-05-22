@@ -7,15 +7,19 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, StreamingResponse
 
 from .. import audio_store, store_db
-from ..auth import AuthUser, CurrentUser
+from ..auth import AuthUser, CurrentUser, CurrentUserWithQueryToken
 from ..models import EpisodeListResponse, EpisodeResponse, PaperResponse
+from ..pipeline_runner import synthesize_episode_audio
 
 logger = logging.getLogger("neuropod.episodes")
 
 router = APIRouter(prefix="/episodes", tags=["episodes"])
 
 
-def _audio_url(request: Request, episode_id: str) -> str:
+def _audio_url(request: Request, episode: dict) -> str | None:
+    if not episode.get("audio_key"):
+        return None
+    episode_id = episode["id"]
     return str(request.url_for("stream_episode_audio", episode_id=episode_id))
 
 
@@ -32,7 +36,8 @@ def _serialize(request: Request, episode: dict) -> EpisodeResponse:
         llm_provider=episode.get("llm_provider", "demo"),
         qa_status=episode["qa_status"],
         created_at=episode.get("created_at"),
-        audio_url=_audio_url(request, episode["id"]),
+        audio_ready=bool(episode.get("audio_key")),
+        audio_url=_audio_url(request, episode),
         script=episode.get("script"),
         paper=PaperResponse.model_validate({
             **paper,
@@ -70,10 +75,47 @@ def get_episode_paper(episode_id: str, user: AuthUser = CurrentUser) -> PaperRes
     return PaperResponse.model_validate(episode["paper"])
 
 
-@router.get("/{episode_id}/audio", name="stream_episode_audio")
-def stream_episode_audio(episode_id: str, user: AuthUser = CurrentUser):
+@router.post("/{episode_id}/audio", response_model=EpisodeResponse)
+def generate_episode_audio(
+    episode_id: str,
+    request: Request,
+    force: bool = Query(default=False),
+    user: AuthUser = CurrentUser,
+) -> EpisodeResponse:
     import uuid as _u
-    episode = store_db.get_episode(user.id, _u.UUID(episode_id))
+    try:
+        eid = _u.UUID(episode_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid episode id")
+
+    episode = store_db.get_episode(user.id, eid)
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    if episode.get("audio_key") and not force:
+        return _serialize(request, episode)
+    if not episode.get("script"):
+        raise HTTPException(status_code=400, detail="Episode has no generated script")
+
+    try:
+        synthesize_episode_audio(eid, script=episode["script"], title=episode["title"])
+    except Exception as exc:
+        logger.exception("audio generation failed for episode %s", episode_id)
+        raise HTTPException(status_code=502, detail=f"audio generation failed: {str(exc)[:160]}")
+
+    updated = store_db.get_episode(user.id, eid)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    return _serialize(request, updated)
+
+
+@router.get("/{episode_id}/audio", name="stream_episode_audio")
+def stream_episode_audio(episode_id: str, user: AuthUser = CurrentUserWithQueryToken):
+    import uuid as _u
+    try:
+        eid = _u.UUID(episode_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid episode id")
+    episode = store_db.get_episode(user.id, eid)
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
     audio_key = episode.get("audio_key")

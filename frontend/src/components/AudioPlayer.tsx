@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { apiBaseUrl, postFeedback } from "@/lib/api"
+import { getToken } from "@/lib/auth"
 import { emitToast } from "@/components/Toast"
 
 type PlayerEpisode = {
@@ -73,9 +74,15 @@ export function AudioPlayer() {
       setErrored(false)
       setBuffering(true)
       setCurrentTime(0)
-      audio.src = episode.audioUrl.startsWith("http")
+      const raw = episode.audioUrl.startsWith("http")
         ? episode.audioUrl
         : `${apiBaseUrl()}${episode.audioUrl}`
+      // <audio> can't send Authorization headers — attach the bearer as ?token=…
+      const token = getToken()
+      const url = token
+        ? `${raw}${raw.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
+        : raw
+      audio.src = url
       audio.playbackRate = speed
       audio
         .play()
