@@ -252,7 +252,7 @@ def list_episodes(
     user_id: uuid.UUID,
     *,
     topic: Optional[str] = None,
-    limit: int = 24,
+    limit: int = 100,
 ) -> list[dict[str, Any]]:
     sql = """
         SELECT e.id, e.user_id, e.paper_id, e.title, e.description, e.topic,

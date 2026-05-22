@@ -55,7 +55,7 @@ def get_feed(user_slug: str, request: Request) -> Response:
     if not user:
         raise HTTPException(status_code=404, detail="feed not found")
 
-    episodes = store_db.list_episodes(uuid.UUID(str(user["id"])), limit=50)
+    episodes = store_db.list_episodes(uuid.UUID(str(user["id"])), limit=100)
     base = str(request.base_url).rstrip("/")
     title = f"Neuropod - {escape(user.get('display_name') or user_slug)}"
     items = "\n".join(_episode_to_item(request, ep, user_slug) for ep in episodes)

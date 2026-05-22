@@ -50,7 +50,7 @@ def _serialize(request: Request, episode: dict) -> EpisodeResponse:
 def list_episodes(
     request: Request,
     topic: str | None = Query(default=None),
-    limit: int = Query(default=24, ge=1, le=50),
+    limit: int = Query(default=100, ge=1, le=200),
     user: AuthUser = CurrentUser,
 ) -> EpisodeListResponse:
     items = [_serialize(request, item) for item in store_db.list_episodes(user.id, topic=topic, limit=limit)]
