@@ -98,7 +98,6 @@ def run() -> list[EvalResult]:
         sys.exit(2)
 
     topics = ["language models", "retrieval augmented generation", "agents"]
-    keys = {"openai": openai_key, "anthropic": os.getenv("ANTHROPIC_API_KEY", "")}
 
     # Use the curated demo catalog as the held-out set.
     discovery = ArxivClient()
@@ -106,9 +105,9 @@ def run() -> list[EvalResult]:
 
     extractor = PDFExtractor()
     chunker = SectionAwareChunker()
-    embedder = get_embedder(keys=keys)
+    embedder = get_embedder()
     retriever = Retriever(embedder=embedder)
-    writer = ScriptWriter(keys=keys)
+    writer = ScriptWriter()
 
     results: list[EvalResult] = []
     for candidate in candidates:

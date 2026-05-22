@@ -18,11 +18,10 @@ from api.pipeline_runner import run_for_user
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Neuropod pipeline.")
-    parser.add_argument("--email", default="demo@neuropod.local")
+    parser.add_argument("--email", default="demo@example.com")
     parser.add_argument("--topics", default="")
     parser.add_argument("--num-episodes", type=int, default=3)
     parser.add_argument("--window", type=int, default=None)
-    parser.add_argument("--require-user-keys", action="store_true")
     args = parser.parse_args()
 
     settings = get_settings()
@@ -36,7 +35,6 @@ def main() -> None:
         topics=topics,
         episode_count=args.num_episodes,
         window_days=args.window or settings.discovery_window_days,
-        require_user_keys=args.require_user_keys,
     )
     print(f"Generated {result['result_count']} episodes for {user.email}.")
     for ep_id in result["episode_ids"]:

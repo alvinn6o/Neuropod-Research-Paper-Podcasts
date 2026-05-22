@@ -1,14 +1,43 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter
 
 from pipeline.provider_status import snapshot
 
-from .. import keys_repo, store_db
+from .. import store_db
 from ..auth import AuthUser, OptionalUser
 from ..config import get_settings
 
 router = APIRouter(prefix="/status", tags=["status"])
+
+
+def _detect_providers() -> dict[str, str]:
+    """Which provider each stage will use, based on operator env config."""
+    has_openai = bool(os.getenv("OPENAI_API_KEY", "").strip())
+    has_anthropic = bool(os.getenv("ANTHROPIC_API_KEY", "").strip())
+    has_elevenlabs = bool(os.getenv("ELEVENLABS_API_KEY", "").strip())
+    has_bedrock = os.getenv("NEUROPOD_BEDROCK_OPERATOR", "").lower() in {"1", "true", "yes"}
+
+    if has_anthropic:
+        llm = "anthropic"
+    elif has_bedrock:
+        llm = "bedrock"
+    elif has_openai:
+        llm = "openai"
+    else:
+        llm = "demo"
+
+    if has_elevenlabs:
+        tts = "elevenlabs"
+    elif has_openai:
+        tts = "openai"
+    else:
+        tts = "demo"
+
+    embedder = "openai" if has_openai else "demo"
+    return {"llm": llm, "tts": tts, "embedder": embedder}
 
 
 @router.get("")
@@ -20,7 +49,7 @@ def get_status(user: AuthUser | None = OptionalUser) -> dict:
         "discovery_window_days": settings.discovery_window_days,
         "audio_backend": settings.audio_backend,
         "scheduler_enabled": settings.enable_scheduler,
-        "require_user_keys": settings.require_user_keys,
+        "providers": _detect_providers(),
         "provider_calls": snapshot(),
     }
 
@@ -28,24 +57,9 @@ def get_status(user: AuthUser | None = OptionalUser) -> dict:
         out["authenticated"] = False
         return out
 
-    masked = keys_repo.list_masked(user.id)
     out["authenticated"] = True
     out["user"] = {"feed_slug": user.feed_slug, "email": user.email}
     out["topics"] = store_db.get_topics(user.id)
     out["categories"] = store_db.get_categories(user.id)
-    out["keys"] = masked
-    if "bedrock" in masked:
-        llm = "bedrock"
-    elif "anthropic" in masked:
-        llm = "anthropic"
-    elif "openai" in masked:
-        llm = "openai"
-    else:
-        llm = "demo"
-    out["providers"] = {
-        "llm": llm,
-        "tts": "elevenlabs" if "elevenlabs" in masked else ("openai" if "openai" in masked else "demo"),
-        "embedder": "openai" if "openai" in masked else "demo",
-    }
     out["last_job"] = store_db.latest_job(user.id)
     return out

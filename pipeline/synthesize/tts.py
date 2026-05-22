@@ -7,7 +7,6 @@ import os
 import struct
 import time
 import wave
-from typing import Optional
 
 from .._http import ProviderError, post_for_bytes
 from ..provider_status import record_failure, record_success
@@ -18,19 +17,9 @@ logger = logging.getLogger("neuropod.tts")
 class TTSProvider:
     """Routes TTS to ElevenLabs / OpenAI when keys are present, demo otherwise."""
 
-    def __init__(
-        self,
-        *,
-        keys: Optional[dict[str, str]] = None,
-        require_user_keys: bool = False,
-    ) -> None:
-        keys = keys or {}
-        if require_user_keys:
-            self.elevenlabs_key = keys.get("elevenlabs", "")
-            self.openai_key = keys.get("openai", "")
-        else:
-            self.elevenlabs_key = keys.get("elevenlabs") or os.getenv("ELEVENLABS_API_KEY", "")
-            self.openai_key = keys.get("openai") or os.getenv("OPENAI_API_KEY", "")
+    def __init__(self) -> None:
+        self.elevenlabs_key = os.getenv("ELEVENLABS_API_KEY", "")
+        self.openai_key = os.getenv("OPENAI_API_KEY", "")
         self.elevenlabs_voice = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
         self.openai_voice = os.getenv("OPENAI_TTS_VOICE", "alloy")
         self.preferred = os.getenv("NEUROPOD_TTS_PROVIDER", "auto").lower()

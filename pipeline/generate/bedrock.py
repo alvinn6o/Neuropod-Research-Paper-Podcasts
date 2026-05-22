@@ -82,25 +82,3 @@ class BedrockClient:
             raise ProviderError("bedrock", None, f"unexpected response shape: {payload}") from exc
 
 
-def parse_bedrock_credentials(raw: Any) -> dict[str, str] | None:
-    """Accepts either a JSON string or dict with access_key/secret_key/region."""
-    if not raw:
-        return None
-    if isinstance(raw, str):
-        try:
-            data = json.loads(raw)
-        except Exception:
-            return None
-    else:
-        data = raw
-    if not isinstance(data, dict):
-        return None
-    if not (data.get("access_key") and data.get("secret_key") and data.get("region")):
-        return None
-    return {
-        "access_key": data["access_key"],
-        "secret_key": data["secret_key"],
-        "region": data["region"],
-        "session_token": data.get("session_token") or "",
-        "model_id": data.get("model_id") or DEFAULT_MODEL_ID,
-    }

@@ -92,19 +92,6 @@ class MeResponse(BaseModel):
     email: str
     feed_slug: str
     display_name: Optional[str] = None
-    keys: dict[str, str] = Field(default_factory=dict)  # provider -> hint
-
-
-class KeyUpdateRequest(BaseModel):
-    provider: Literal["openai", "anthropic", "elevenlabs", "bedrock"]
-    # For api-key providers (openai/anthropic/elevenlabs):
-    api_key: Optional[str] = Field(default=None, min_length=8, max_length=400)
-    # For bedrock (AWS SigV4):
-    region: Optional[str] = Field(default=None, min_length=2, max_length=40)
-    access_key: Optional[str] = Field(default=None, min_length=8, max_length=128)
-    secret_key: Optional[str] = Field(default=None, min_length=8, max_length=128)
-    session_token: Optional[str] = Field(default=None, max_length=4096)
-    model_id: Optional[str] = Field(default=None, max_length=128)
 
 
 # ----- Pipeline jobs -----

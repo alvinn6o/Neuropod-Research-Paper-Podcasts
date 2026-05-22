@@ -24,8 +24,7 @@ export default function LoginPage() {
     try {
       const session = await stubLogin(email.trim())
       setToken(session.token)
-      const onboard = Object.keys(session.user.keys || {}).length === 0
-      router.replace(onboard ? "/settings/keys?onboarding=1" : "/")
+      router.replace("/")
     } catch (err) {
       emitToast(err instanceof Error ? err.message : "Login failed", "error")
     } finally {

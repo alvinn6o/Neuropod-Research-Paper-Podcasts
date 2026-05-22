@@ -21,21 +21,6 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_feed_slug ON users(feed_slug);
 
 -- ============================================================================
--- Encrypted per-user provider API keys (BYOK)
--- ============================================================================
--- ciphertext is Fernet-encrypted with the server-side MASTER_KEY.
--- Plaintext is never logged or returned by the API.
-CREATE TABLE IF NOT EXISTS user_keys (
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  provider    TEXT NOT NULL,         -- 'openai' | 'anthropic' | 'elevenlabs'
-  ciphertext  BYTEA NOT NULL,
-  hint        TEXT NOT NULL,         -- last 4 chars for masked display
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (user_id, provider)
-);
-
--- ============================================================================
 -- Per-user topic preferences
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS user_topics (

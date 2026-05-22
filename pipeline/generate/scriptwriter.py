@@ -3,12 +3,11 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Optional
 
 from .._http import ProviderError, post_json
 from ..models import PaperCandidate
 from ..provider_status import record_failure, record_success
-from .bedrock import BedrockClient, parse_bedrock_credentials
+from .bedrock import BedrockClient
 
 logger = logging.getLogger("neuropod.scriptwriter")
 
@@ -26,21 +25,10 @@ SYSTEM_PROMPT = (
 
 
 class ScriptWriter:
-    def __init__(
-        self,
-        *,
-        keys: Optional[dict[str, str]] = None,
-        require_user_keys: bool = False,
-    ) -> None:
-        keys = keys or {}
-        if require_user_keys:
-            self.anthropic_key = keys.get("anthropic", "")
-            self.openai_key = keys.get("openai", "")
-            self.bedrock_creds = parse_bedrock_credentials(keys.get("bedrock"))
-        else:
-            self.anthropic_key = keys.get("anthropic") or os.getenv("ANTHROPIC_API_KEY", "")
-            self.openai_key = keys.get("openai") or os.getenv("OPENAI_API_KEY", "")
-            self.bedrock_creds = parse_bedrock_credentials(keys.get("bedrock")) or _operator_bedrock()
+    def __init__(self) -> None:
+        self.anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+        self.openai_key = os.getenv("OPENAI_API_KEY", "")
+        self.bedrock_creds = _operator_bedrock()
         self.provider = os.getenv("NEUROPOD_LLM_PROVIDER", "auto").lower()
 
     def write(

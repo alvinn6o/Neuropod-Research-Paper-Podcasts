@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pipeline.generate.embedder import get_embedder
 from pipeline.generate.retriever import Retriever
 
-from .. import keys_repo, store_db
+from .. import store_db
 from ..auth import AuthUser, CurrentUser
 from ..config import get_settings
 from ..models import AskRequest, AskResponse, CitationResponse
@@ -31,11 +31,8 @@ def ask_episode(episode_id: str, payload: AskRequest, user: AuthUser = CurrentUs
     if not chunks:
         raise HTTPException(status_code=404, detail="Paper chunks not found")
 
-    # Use the user's own keys for embeddings (so /ask vector search uses real embeds when available)
-    keys = keys_repo.load_keys(user.id)
-    embedder = get_embedder(keys=keys, require_user_keys=settings.require_user_keys)
+    embedder = get_embedder()
 
-    # Rate limit
     _, allowed = store_db.increment_rate_limit(user.id, "ask", daily_max=settings.daily_ask_limit)
     if not allowed:
         raise HTTPException(status_code=429, detail="daily question limit reached")

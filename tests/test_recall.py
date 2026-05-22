@@ -100,7 +100,7 @@ def test_recall_at_k(retriever, chunks, queries, k):
     recall = hits / len(queries)
 
     # Print so CI logs show real numbers
-    print(f"\n  recall@{k} = {hits}/{len(queries)} = {recall:.2%}")
+    print(f"\n  recall@{k}: {hits} of {len(queries)} queries had a gold chunk in top-{k} ({recall:.1%})")
 
     # Honest, embedder-agnostic floor. Hash embeddings yield ~50-70%;
     # OpenAI embeddings should clear ~85%+ at k=10.

@@ -50,7 +50,6 @@ class Settings:
     database_url: str
     daily_pipeline_limit: int
     daily_ask_limit: int
-    require_user_keys: bool
     cors_origins: list[str]
 
 
@@ -80,6 +79,5 @@ def get_settings() -> Settings:
         database_url=os.getenv("NEUROPOD_DATABASE_URL", ""),
         daily_pipeline_limit=int(os.getenv("NEUROPOD_DAILY_PIPELINE_LIMIT", "20")),
         daily_ask_limit=int(os.getenv("NEUROPOD_DAILY_ASK_LIMIT", "200")),
-        require_user_keys=_env_flag("NEUROPOD_REQUIRE_USER_KEYS", True),
         cors_origins=cors_origins,
     )

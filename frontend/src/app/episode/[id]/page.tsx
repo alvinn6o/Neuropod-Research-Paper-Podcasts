@@ -15,7 +15,7 @@ type Props = { params: Promise<{ id: string }> }
 export default function EpisodePage({ params }: Props) {
   const { id } = use(params)
   return (
-    <AuthGuard requireKeys>
+    <AuthGuard>
       {() => <EpisodeView id={id} />}
     </AuthGuard>
   )

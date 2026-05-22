@@ -57,47 +57,6 @@ def test_topic_dedupes_and_trims(client, auth_headers):
     assert "rag" in topics
 
 
-def test_set_and_delete_provider_key(client, auth_headers):
-    response = client.put(
-        "/me/keys", headers=auth_headers,
-        json={"provider": "openai", "api_key": "sk-test-1234567890"},
-    )
-    assert response.status_code == 200
-    assert response.json()["keys"] == {"openai": "7890"}
-
-    response = client.delete("/me/keys/openai", headers=auth_headers)
-    assert response.json()["keys"] == {}
-
-
-def test_bedrock_key_requires_full_credentials(client, auth_headers):
-    response = client.put(
-        "/me/keys", headers=auth_headers,
-        json={"provider": "bedrock", "access_key": "AKIA", "secret_key": "12345678"},
-    )
-    assert response.status_code == 422
-
-
-def test_bedrock_key_stores_region_in_hint(client, auth_headers):
-    response = client.put(
-        "/me/keys", headers=auth_headers,
-        json={
-            "provider": "bedrock",
-            "region": "us-west-2",
-            "access_key": "AKIAEXAMPLEEXAMPLE",
-            "secret_key": "exampleSecretWith20PlusCharacters",
-        },
-    )
-    assert response.status_code == 200
-    hint = response.json()["keys"]["bedrock"]
-    assert hint.startswith("us-west-2")
-    assert "MPLE" in hint  # last 4 of access key masked
-
-
-def test_unknown_provider_rejected(client, auth_headers):
-    response = client.put("/me/keys", headers=auth_headers, json={"provider": "evil", "api_key": "sk-x" * 5})
-    assert response.status_code == 422
-
-
 def test_logout_invalidates_session(client, auth_headers):
     assert client.get("/me", headers=auth_headers).status_code == 200
     assert client.post("/auth/logout", headers=auth_headers).status_code == 200

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
-from .. import keys_repo
 from ..auth import AuthUser, CurrentUser, auth_mode, stub_login, stub_logout
 from ..models import AuthSession, MeResponse, StubLoginRequest
 
@@ -23,14 +22,12 @@ def stub_login_endpoint(payload: StubLoginRequest) -> AuthSession:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    masked = keys_repo.list_masked(user.id)
     return AuthSession(
         token=token,
         user=MeResponse(
             id=str(user.id),
             email=user.email,
             feed_slug=user.feed_slug,
-            keys=masked,
         ),
     )
 

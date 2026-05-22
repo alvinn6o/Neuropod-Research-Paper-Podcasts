@@ -9,7 +9,7 @@ import { Episode } from "@/lib/types"
 
 export default function ExplorePage() {
   return (
-    <AuthGuard requireKeys>
+    <AuthGuard>
       {() => <ExploreLoader />}
     </AuthGuard>
   )

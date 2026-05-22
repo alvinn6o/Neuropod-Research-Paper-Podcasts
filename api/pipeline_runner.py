@@ -3,6 +3,10 @@
 Used by:
   * /pipeline/run web handler (synchronous, dev mode)
   * pipeline.worker CLI (Fargate task entrypoint, prod mode)
+
+Provider keys come from operator-level env vars (ANTHROPIC_API_KEY,
+OPENAI_API_KEY, ELEVENLABS_API_KEY) or — for Bedrock — from the task's
+IAM role when NEUROPOD_BEDROCK_OPERATOR=true.
 """
 from __future__ import annotations
 
@@ -14,7 +18,7 @@ from typing import Any
 from pipeline.orchestrator import build_demo_payload
 from pipeline.synthesize.tts import TTSProvider
 
-from . import audio_store, keys_repo, store_db
+from . import audio_store, store_db
 
 logger = logging.getLogger("neuropod.runner")
 
@@ -25,16 +29,9 @@ def run_for_user(
     topics: list[str],
     episode_count: int,
     window_days: int,
-    require_user_keys: bool = True,
     categories: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run the pipeline for one user. Persists papers, chunks, episodes, audio."""
-
-    keys = keys_repo.load_keys(user_id)
-    if require_user_keys and not (keys.get("openai") or keys.get("anthropic") or keys.get("elevenlabs")):
-        raise RuntimeError(
-            "no provider keys configured — add at least one in /settings/keys"
-        )
 
     feedback = store_db.feedback_for_user(user_id)
     prior = store_db.list_episodes(user_id, limit=24)
@@ -45,8 +42,6 @@ def run_for_user(
         window_days=window_days,
         feedback_events=feedback,
         prior_episodes=prior,
-        keys=keys,
-        require_user_keys=require_user_keys,
         categories=categories or store_db.get_categories(user_id),
     )
 
@@ -67,7 +62,7 @@ def run_for_user(
 
     # episodes — synth audio per episode and store
     inserted_ids: list[uuid.UUID] = []
-    tts = TTSProvider(keys=keys, require_user_keys=require_user_keys)
+    tts = TTSProvider()
     for episode in result["episodes"]:
         new_paper_id = paper_id_map.get(episode["paper_id"])
         if new_paper_id is None:
@@ -79,7 +74,6 @@ def run_for_user(
         episode_id = store_db.insert_episode(user_id, new_paper_id, episode_record)
         inserted_ids.append(episode_id)
 
-        # Synthesize + store audio (best-effort — failure isn't fatal)
         try:
             audio_bytes, mime, _ = tts.synthesize(episode["script"], title=episode["title"])
             cache_key = hashlib.sha1(

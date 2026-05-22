@@ -11,7 +11,7 @@ import { relativeTime } from "@/lib/time"
 
 export default function HomePage() {
   return (
-    <AuthGuard requireKeys>
+    <AuthGuard>
       {() => <FeedView />}
     </AuthGuard>
   )

@@ -55,7 +55,7 @@ def main() -> None:
     chunks = chunker.chunk_sections(candidate.arxiv_id, sections)
     print(f"chunked into {len(chunks)} pieces")
 
-    embedder = get_embedder(keys={"openai": os.getenv("OPENAI_API_KEY", "")})
+    embedder = get_embedder()
     backend = type(embedder).__name__
     print(f"embedding with {backend}...")
     embedder.embed_chunks(chunks)

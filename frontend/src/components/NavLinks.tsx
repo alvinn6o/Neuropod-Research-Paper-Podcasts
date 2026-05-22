@@ -12,7 +12,6 @@ const links = [
   { href: "/explore", label: "Explore" },
   { href: "/topics", label: "Topics" },
   { href: "/subscribe", label: "Feed URL" },
-  { href: "/settings/keys", label: "Keys" },
 ]
 
 export function NavLinks() {

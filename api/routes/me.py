@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import json
+from fastapi import APIRouter
 
-from fastapi import APIRouter, HTTPException
-
-from .. import keys_repo
 from ..auth import AuthUser, CurrentUser
-from ..models import KeyUpdateRequest, MeResponse
+from ..models import MeResponse
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -17,48 +14,4 @@ def get_me(user: AuthUser = CurrentUser) -> MeResponse:
         id=str(user.id),
         email=user.email,
         feed_slug=user.feed_slug,
-        keys=keys_repo.list_masked(user.id),
-    )
-
-
-@router.put("/keys", response_model=MeResponse)
-def update_key(payload: KeyUpdateRequest, user: AuthUser = CurrentUser) -> MeResponse:
-    if payload.provider == "bedrock":
-        if not (payload.region and payload.access_key and payload.secret_key):
-            raise HTTPException(status_code=400, detail="bedrock requires region, access_key, and secret_key")
-        plaintext = json.dumps({
-            "region": payload.region,
-            "access_key": payload.access_key,
-            "secret_key": payload.secret_key,
-            "session_token": payload.session_token or "",
-            "model_id": payload.model_id or "us.anthropic.claude-sonnet-4-6-20251010-v1:0",
-        })
-    else:
-        if not payload.api_key:
-            raise HTTPException(status_code=400, detail=f"{payload.provider} requires api_key")
-        plaintext = payload.api_key
-
-    try:
-        keys_repo.set_key(user.id, payload.provider, plaintext)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    return MeResponse(
-        id=str(user.id),
-        email=user.email,
-        feed_slug=user.feed_slug,
-        keys=keys_repo.list_masked(user.id),
-    )
-
-
-@router.delete("/keys/{provider}", response_model=MeResponse)
-def delete_key(provider: str, user: AuthUser = CurrentUser) -> MeResponse:
-    if provider not in keys_repo.VALID_PROVIDERS:
-        raise HTTPException(status_code=400, detail="unknown provider")
-    keys_repo.delete_key(user.id, provider)
-    return MeResponse(
-        id=str(user.id),
-        email=user.email,
-        feed_slug=user.feed_slug,
-        keys=keys_repo.list_masked(user.id),
     )

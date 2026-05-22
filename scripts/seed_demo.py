@@ -15,7 +15,7 @@ from api.db import init_schema
 from api.pipeline_runner import run_for_user
 
 
-DEMO_EMAIL = "demo@neuropod.local"
+DEMO_EMAIL = "demo@example.com"
 
 
 def main() -> None:
@@ -35,7 +35,6 @@ def main() -> None:
             topics=settings.default_topics,
             episode_count=settings.default_episode_count,
             window_days=settings.discovery_window_days,
-            require_user_keys=False,  # demo seed: allow env-key fallback
         )
         print(f"Generated {result['result_count']} demo episodes.")
     else:

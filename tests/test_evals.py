@@ -64,7 +64,7 @@ def test_hash_embedder_handles_empty_input():
 
 def test_embedder_selection_falls_back_without_keys(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    embedder = get_embedder(keys={}, require_user_keys=True)
+    embedder = get_embedder()
     assert isinstance(embedder, HashEmbedder)
 
 

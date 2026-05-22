@@ -24,8 +24,6 @@ def build_demo_payload(
     window_days: int = 7,
     feedback_events: Optional[list[dict]] = None,
     prior_episodes: Optional[list[dict]] = None,
-    keys: Optional[dict[str, str]] = None,
-    require_user_keys: bool = False,
     categories: Optional[list[str]] = None,
 ) -> dict:
     """Run the full discover→script→audio pipeline.
@@ -37,17 +35,16 @@ def build_demo_payload(
     """
     from .discover.affinity import compute_affinity
 
-    keys = keys or {}
     discovery = ArxivClient()
     metadata = SemanticScholarClient()
     extractor = PDFExtractor()
     chunker = SectionAwareChunker()
-    embedder = get_embedder(keys=keys, require_user_keys=require_user_keys)
+    embedder = get_embedder()
     retriever = Retriever(embedder=embedder)
-    writer = ScriptWriter(keys=keys, require_user_keys=require_user_keys)
+    writer = ScriptWriter()
     checker = QAChecker()
     audio = AudioProcessor()
-    tts = TTSProvider(keys=keys, require_user_keys=require_user_keys)
+    tts = TTSProvider()
 
     affinity_scores = compute_affinity(feedback_events or [], prior_episodes or [])
 

@@ -46,7 +46,6 @@ export type UserResponse = {
   email: string
   feed_slug: string
   display_name?: string | null
-  keys: Record<string, string>
 }
 
 export type AuthSession = {
@@ -61,11 +60,10 @@ export type StatusResponse = {
   live_discovery: boolean
   discovery_window_days: number
   scheduler_enabled: boolean
-  require_user_keys: boolean
   user?: { feed_slug: string; email: string }
   topics?: string[]
-  keys?: Record<string, string>
-  providers?: { llm: string; tts: string; embedder: string }
+  categories?: string[]
+  providers: { llm: string; tts: string; embedder: string }
   last_job?: JobResponse | null
   provider_calls: Record<string, {
     ok: boolean

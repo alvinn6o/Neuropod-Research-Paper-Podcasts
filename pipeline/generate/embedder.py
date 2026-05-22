@@ -6,7 +6,6 @@ import math
 import os
 import re
 import time
-from typing import Optional
 
 from .._http import ProviderError, post_json
 from ..models import PaperChunk
@@ -85,16 +84,8 @@ class OpenAIEmbedder:
         return [row["embedding"] for row in result["data"]]
 
 
-def get_embedder(
-    *,
-    keys: Optional[dict[str, str]] = None,
-    require_user_keys: bool = False,
-) -> HashEmbedder | OpenAIEmbedder:
-    keys = keys or {}
-    if require_user_keys:
-        key = keys.get("openai", "")
-    else:
-        key = keys.get("openai") or os.getenv("OPENAI_API_KEY", "")
+def get_embedder() -> HashEmbedder | OpenAIEmbedder:
+    key = os.getenv("OPENAI_API_KEY", "")
     if not key:
         return HashEmbedder()
     if os.getenv("NEUROPOD_EMBEDDER", "auto").lower() == "demo":

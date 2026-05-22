@@ -65,32 +65,6 @@ export async function getMe() {
   return fetchJson<UserResponse>("/me")
 }
 
-export async function setProviderKey(provider: string, apiKey: string) {
-  return fetchJson<UserResponse>("/me/keys", {
-    method: "PUT",
-    body: JSON.stringify({ provider, api_key: apiKey }),
-  })
-}
-
-export type BedrockCredentials = {
-  region: string
-  access_key: string
-  secret_key: string
-  session_token?: string
-  model_id?: string
-}
-
-export async function setBedrockKey(creds: BedrockCredentials) {
-  return fetchJson<UserResponse>("/me/keys", {
-    method: "PUT",
-    body: JSON.stringify({ provider: "bedrock", ...creds }),
-  })
-}
-
-export async function deleteProviderKey(provider: string) {
-  return fetchJson<UserResponse>(`/me/keys/${provider}`, { method: "DELETE" })
-}
-
 // ---- Domain ----
 export async function getEpisodes(topic?: string) {
   const query = topic ? `?topic=${encodeURIComponent(topic)}` : ""

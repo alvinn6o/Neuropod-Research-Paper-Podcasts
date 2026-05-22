@@ -91,7 +91,6 @@ def main(argv: list[str] | None = None) -> int:
             topics=topics,
             episode_count=episode_count,
             window_days=window_days,
-            require_user_keys=settings.require_user_keys,
         )
         store_db.update_job(
             job_id, status="done", finished_at=True, result_count=result["result_count"]

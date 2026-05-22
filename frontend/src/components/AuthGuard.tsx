@@ -8,10 +8,9 @@ import { UserResponse } from "@/lib/types"
 
 type Props = {
   children: (user: UserResponse) => React.ReactNode
-  requireKeys?: boolean
 }
 
-export function AuthGuard({ children, requireKeys = false }: Props) {
+export function AuthGuard({ children }: Props) {
   const router = useRouter()
   const [user, setUser] = useState<UserResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -19,14 +18,7 @@ export function AuthGuard({ children, requireKeys = false }: Props) {
   useEffect(() => {
     let cancelled = false
     getMe()
-      .then((u) => {
-        if (cancelled) return
-        if (requireKeys && Object.keys(u.keys || {}).length === 0) {
-          router.replace("/settings/keys?onboarding=1")
-          return
-        }
-        setUser(u)
-      })
+      .then((u) => { if (!cancelled) setUser(u) })
       .catch((err: unknown) => {
         if (cancelled) return
         if (err instanceof ApiError && err.status === 401) {
@@ -35,10 +27,8 @@ export function AuthGuard({ children, requireKeys = false }: Props) {
           setError(err instanceof Error ? err.message : "Failed to load user")
         }
       })
-    return () => {
-      cancelled = true
-    }
-  }, [router, requireKeys])
+    return () => { cancelled = true }
+  }, [router])
 
   if (error) {
     return <div className="empty-state"><h3>Something went wrong</h3><p>{error}</p></div>
