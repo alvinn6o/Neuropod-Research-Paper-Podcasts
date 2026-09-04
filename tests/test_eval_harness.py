@@ -131,9 +131,16 @@ def test_bm25_normalizes_for_length():
 
 
 def test_rrf_rewards_agreement_across_rankings():
+    """A doc ranked highly by both systems must beat one ranked highly by only
+    one, even when that one system ranks it first."""
     fused = dict(reciprocal_rank_fusion([["a", "b", "c"], ["a", "c", "b"]]))
-    assert fused["a"] > fused["c"] > fused["b"] or fused["a"] > fused["b"]
-    assert max(fused, key=fused.get) == "a"
+    assert max(fused, key=fused.get) == "a", "agreed-on doc should win"
+    assert fused["b"] == fused["c"], "ranks 2+3 and 3+2 must tie"
+
+    # A doc first in one list but absent from the other loses to a doc that is
+    # second in both — the property that makes RRF robust to one bad system.
+    fused2 = dict(reciprocal_rank_fusion([["x", "steady"], ["steady"]]))
+    assert fused2["steady"] > fused2["x"]
 
 
 # ---------------------------------------------------------------------------

@@ -165,10 +165,13 @@ def paired_bootstrap(
     lo = means[int((alpha / 2) * resamples)]
     hi = means[min(int((1 - alpha / 2) * resamples), resamples - 1)]
 
-    opposing = sum(1 for m in means if (m <= 0) if observed > 0) or sum(
-        1 for m in means if (m >= 0) if observed < 0
-    )
-    p = min(1.0, 2 * opposing / resamples) if observed != 0 else 1.0
+    if observed > 0:
+        opposing = sum(1 for m in means if m <= 0)
+    elif observed < 0:
+        opposing = sum(1 for m in means if m >= 0)
+    else:
+        opposing = resamples // 2
+    p = min(1.0, 2 * opposing / resamples)
     return PairedResult(observed, lo, hi, p, n)
 
 
