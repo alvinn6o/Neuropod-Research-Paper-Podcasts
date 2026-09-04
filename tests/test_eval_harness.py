@@ -215,8 +215,8 @@ def test_chunk_length_carries_no_signal_about_which_chunk_is_gold():
     from eval.train_reranker import load_dataset, qrels_for, rank_with, split_by_paper
     from pipeline.generate.features import FEATURE_NAMES
 
-    rows = load_dataset()
-    _, _, test, _ = split_by_paper(rows)
+    rows = load_dataset(verbose=False)
+    _, test, _ = split_by_paper(rows)
     qrels = qrels_for(test)
     i_len = FEATURE_NAMES.index("chunk_tokens")
 
@@ -244,7 +244,7 @@ def test_gold_and_non_gold_chunk_lengths_are_comparable():
     """The mechanism behind the leak, asserted directly."""
     from eval.train_reranker import load_dataset
 
-    rows = load_dataset()
+    rows = load_dataset(verbose=False)
     gold, other = [], []
     for r in rows:
         for c in r["candidates"]:
@@ -257,3 +257,86 @@ def test_gold_and_non_gold_chunk_lengths_are_comparable():
         "gold and non-gold chunks differ in how often they hit the 110-word cap; "
         "that alone identifies the gold chunk"
     )
+
+
+# ---------------------------------------------------------------------------
+# Reranker
+# ---------------------------------------------------------------------------
+
+def test_features_are_deterministic_and_correctly_shaped():
+    from pipeline.generate.features import FEATURE_NAMES, build_features
+
+    chunks = [
+        {"id": "a", "section": "results", "content": "We measure 5.2x throughput on A100 GPUs.", "chunk_index": 0},
+        {"id": "b", "section": "introduction", "content": "Sequence models are widely studied.", "chunk_index": 1},
+    ]
+    first = build_features(chunks, "what throughput on A100?", dense_scores={"a": 0.7, "b": 0.1})
+    second = build_features(chunks, "what throughput on A100?", dense_scores={"a": 0.7, "b": 0.1})
+    assert [c.features for c in first] == [c.features for c in second]
+    assert all(len(c.features) == len(FEATURE_NAMES) for c in first)
+    assert all(all(isinstance(v, float) for v in c.features) for c in first)
+
+
+def test_features_put_the_relevant_chunk_ahead_on_lexical_signals():
+    from pipeline.generate.features import FEATURE_NAMES, build_features
+
+    chunks = [
+        {"id": "hit", "section": "results", "content": "Throughput reached 5.2x on A100 GPUs.", "chunk_index": 0},
+        {"id": "miss", "section": "results", "content": "Unrelated discussion of dataset licensing.", "chunk_index": 1},
+    ]
+    feats = {c.chunk_id: dict(zip(FEATURE_NAMES, c.features))
+             for c in build_features(chunks, "throughput on A100")}
+    assert feats["hit"]["bm25"] > feats["miss"]["bm25"]
+    assert feats["hit"]["number_match"] > feats["miss"]["number_match"]
+    assert feats["hit"]["max_sent_overlap"] > feats["miss"]["max_sent_overlap"]
+
+
+def test_section_one_hots_cover_the_hand_set_prior():
+    """The learned model must be able to express the heuristic it replaces,
+    otherwise 'learned beats hand-set' compares two different hypothesis spaces."""
+    from pipeline.generate.features import SECTIONS
+    from pipeline.generate.retriever import Retriever
+
+    assert set(Retriever.section_bonus).issubset(set(SECTIONS))
+
+
+@needs_corpus
+def test_cv_folds_never_share_a_paper():
+    """Grouping is the load-bearing discipline: queries from one paper share a
+    chunk pool, so a query-level split lets a model memorize chunks it is then
+    scored on."""
+    from eval.train_reranker import load_dataset
+
+    from eval.train_reranker import split_by_paper
+
+    rows = load_dataset(verbose=False)
+    papers = sorted({r["paper_id"] for r in rows})
+    n_folds = 5
+    folds = [set(papers[i::n_folds]) for i in range(n_folds)]
+
+    for i, a in enumerate(folds):
+        for b in folds[i + 1:]:
+            assert not (a & b), "a paper appears in two folds"
+    assert set().union(*folds) == set(papers)
+
+    cv_pool, holdout_rows, holdout_papers = split_by_paper(rows)
+    assert not ({r["paper_id"] for r in cv_pool} & holdout_papers)
+    assert {r["paper_id"] for r in holdout_rows} == holdout_papers
+
+
+def test_lightgbm_absence_degrades_instead_of_crashing(monkeypatch):
+    """LightGBM is the one dependency pip can install correctly that still
+    fails to import — it links a system OpenMP runtime."""
+    import builtins
+
+    from eval import train_reranker
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "lightgbm":
+            raise OSError("dlopen failed: libomp.dylib not found")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    assert train_reranker._lightgbm() is None

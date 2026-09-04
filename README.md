@@ -206,111 +206,138 @@ pytest tests/test_eval_harness.py -q   # the regression gate, ~3s
 
 ### Ablation
 
-nDCG@10, 472 ICT queries over 42 papers, hash embeddings, retrieval scoped to
-one paper (matching production).
+nDCG@10, **1,935 ICT queries over 168 papers**, hash embeddings, retrieval
+scoped to one paper (matching production).
 
 | Config | nDCG@10 | 95% CI | vs. baseline (paired) | |
 |---|---|---|---|---|
-| `current` (shipping) | 0.246 | [0.219, 0.272] | — | baseline |
-| `dense+prior` | 0.257 | [0.231, 0.286] | +0.012 [−0.006, +0.030] p=0.216 | not significant |
-| `dense` | 0.298 | [0.272, 0.328] | +0.052 [+0.030, +0.075] p<0.001 | significant |
-| `rrf+prior` | 0.326 | [0.299, 0.357] | +0.080 [+0.057, +0.103] p<0.001 | significant |
-| `rrf` | 0.335 | [0.308, 0.366] | +0.090 [+0.064, +0.113] p<0.001 | significant |
-| **`bm25`** | **0.339** | [0.311, 0.369] | **+0.093 [+0.065, +0.119] p<0.001** | **significant** |
+| `current` (shipping) | 0.280 | [0.268, 0.294] | — | baseline |
+| `dense+prior` | 0.288 | [0.274, 0.301] | +0.007 [−0.002, +0.016] p=0.156 | not significant |
+| `dense` | 0.319 | [0.304, 0.332] | +0.038 [+0.027, +0.050] p<0.001 | significant |
+| `rrf+prior` | 0.345 | [0.332, 0.358] | +0.065 [+0.054, +0.076] p<0.001 | significant |
+| `rrf` | 0.358 | [0.344, 0.371] | +0.077 [+0.064, +0.090] p<0.001 | significant |
+| **`bm25`** | **0.360** | [0.347, 0.374] | **+0.080 [+0.065, +0.094] p<0.001** | **significant** |
 
 ### A leak, found and fixed
 
-The first version of this table was wrong, and the way it was wrong is the most
+The first version of this table was wrong, and how it was wrong is the most
 instructive part of the project.
 
 ICT redacts the query sentence from its gold chunk. The chunker caps chunks at
-110 words — so after redacting *only* the gold chunk, **88.9% of non-gold chunks
-sat exactly at the cap and 0% of gold chunks did**. The gold chunk was
-identifiable without reading the query at all.
-
-Measured directly, ranking by chunk length while ignoring the query entirely:
+110 words — so after redacting *only* the gold, **88.9% of non-gold chunks sat
+exactly at the cap and 0% of gold chunks did**. The gold chunk was identifiable
+without reading the query.
 
 | Ranker | nDCG@10 |
 |---|---|
-| by chunk length alone (leaked benchmark) | **0.369** |
+| by chunk length alone, query ignored | **0.369** |
 | BM25 on the same fold | 0.224 |
 | random ordering | 0.075 |
 
 A query-independent rule beat BM25. A gradient-boosted reranker with a length
-feature reached **nDCG@10 = 0.667** — a headline 3× improvement that was almost
-entirely the artifact.
+feature reached **0.667** — a 3× headline that was almost entirely the artifact.
 
 The tell was the fitted coefficient: `chunk_tokens` came out at **−2.07**,
-several times larger than any relevance feature. A model insisting that shorter
-chunks are more relevant is not describing retrieval.
+several times any relevance feature. A model insisting shorter chunks are more
+relevant is not describing retrieval.
 
-`queries.redact_pool` now removes one sentence from **every** candidate, not
-just the gold. Length-alone drops to **0.033** — below random. Two tests in
-`tests/test_eval_harness.py` fail if either property regresses. Every number in
-this README is post-fix.
+`queries.redact_pool` now removes a sentence from **every** candidate. Two tests
+in `tests/test_eval_harness.py` fail if either property regresses. Every number
+below is post-fix.
 
-### Findings — two of them negative
+### Findings — including a negative one
 
 **1. The hand-tuned section prior makes retrieval worse.**
 `Retriever.section_bonus` adds a hand-set constant (`abstract: 0.18`,
-`results: 0.16`, …) directly onto a cosine score. Tested with a paired bootstrap
-rather than inferred from the table above:
+`results: 0.16`, …) directly onto a cosine score. Tested with paired bootstraps
+rather than inferred from the table:
 
 | Comparison | Δ nDCG@10 | 95% CI | p | |
 |---|---|---|---|---|
-| `dense` → `dense+prior` | **−0.041** | [−0.058, −0.025] | <0.001 | significantly worse |
-| `rrf` → `rrf+prior` | −0.009 | [−0.019, +0.001] | 0.078 | worse, not significant |
+| `dense` → `dense+prior` | **−0.031** | [−0.040, −0.023] | <0.001 | significantly worse |
+| `rrf` → `rrf+prior` | **−0.012** | [−0.017, −0.007] | <0.001 | significantly worse |
 
-**2. Proper BM25 beats the shipping sparse path by 38% relative.**
-The shipping "sparse fallback" is raw term-frequency cosine — no IDF, no length
-normalization, no stopwords. Adding those is worth +0.093 nDCG@10.
+At the earlier corpus size (n=472) the second row was −0.009 with p=0.078 —
+*not* significant. Quadrupling the corpus resolved a real effect that the
+smaller sample could not. That is the argument for corpus size, made concretely.
 
-**3. RRF fusion does *not* beat BM25 alone here.** Δ = −0.004, CI
-[−0.019, +0.013], p=0.632. Hybrid retrieval is usually the right default and it
-did not win on this query set.
+**2. Proper BM25 beats the shipping sparse path by 29% relative.** The shipping
+"sparse fallback" is raw term-frequency cosine — no IDF, no length
+normalization, no stopwords.
+
+**3. RRF fusion does *not* beat BM25 alone here.** Δ = −0.002, CI
+[−0.011, +0.007], p=0.572, even at n=1935. Hybrid retrieval is usually the right
+default and it did not win on this query set.
 
 ### A trained reranker
 
-A learned model replacing the hand-set prior, scored on **held-out papers**.
-Splits are grouped by paper, never by query — queries from one paper share a
-chunk pool, so a query-level split lets the model memorize chunks it is then
-scored on. 25 train / 8 dev / 8 test papers; test scored once, after model
-selection on dev.
+Grouped by **paper**, never by query — queries from one paper share a chunk
+pool, so a query-level split lets a model memorize chunks it is then scored on.
+5-fold GroupKFold for model selection, plus 34 papers held out and scored once.
 
-| Model | test nDCG@10 | 95% CI | vs. BM25 (paired) | |
+Cross-validation (134 papers, 5 folds):
+
+| Model | mean nDCG@10 | std | per-fold |
+|---|---|---|---|
+| **LambdaMART** | **0.522** | 0.011 | 0.515 0.529 0.541 0.511 0.515 |
+| GBDT (sklearn) | 0.477 | 0.029 | 0.454 0.456 0.505 0.449 0.519 |
+| Logistic regression | 0.381 | 0.007 | 0.379 0.392 0.385 0.371 0.378 |
+| BM25 | 0.368 | 0.012 | 0.369 0.382 0.379 0.355 0.352 |
+| `dense+prior` (shipping) | 0.299 | 0.012 | 0.300 0.320 0.287 0.300 0.287 |
+
+Held out (34 papers, 382 queries, scored once):
+
+| Model | nDCG@10 | 95% CI | vs. BM25 (paired) | |
 |---|---|---|---|---|
-| `dense+prior` (shipping) | 0.183 | [0.138, 0.230] | −0.053 [−0.106, +0.002] p=0.066 | not significant |
-| BM25 | 0.235 | [0.184, 0.292] | — | baseline |
-| Logistic regression | 0.273 | [0.225, 0.331] | +0.037 [+0.014, +0.066] p<0.001 | significant |
-| **Gradient boosting** | **0.298** | [0.234, 0.366] | **+0.063 [+0.026, +0.099] p<0.001** | **significant** |
+| **LambdaMART** | **0.483** | [0.448, 0.517] | **+0.159 [+0.132, +0.185] p<0.001** | **significant** |
+| GBDT | 0.432 | [0.396, 0.469] | +0.108 [+0.086, +0.130] p<0.001 | significant |
+| Logistic regression | 0.325 | [0.293, 0.356] | +0.002 [−0.012, +0.016] p=0.898 | not significant |
+| BM25 | 0.324 | [0.293, 0.354] | — | baseline |
+| `dense+prior` (shipping) | 0.243 | [0.214, 0.269] | −0.081 [−0.112, −0.051] p<0.001 | significant |
 
-**What the model learned about sections.** The interpretable model's fitted
+**The ranking objective is worth +0.051 over the same model family.** LambdaMART
+and the sklearn GBDT are both gradient-boosted trees on identical features; the
+only difference is that LambdaMART optimizes NDCG over query groups while the
+GBDT classifies each candidate independently and hopes the induced order is
+good. Knowing that candidates *compete within a query* is the single largest
+modelling gain here.
+
+**A linear model is not enough.** Logistic regression ties BM25 exactly
+(+0.002, p=0.898). The gain is not "any learned model beats a heuristic" — it
+needs the capacity for feature interactions.
+
+**What the model learned about sections** — the interpretable model's fitted
 coefficients against the hand-set values they replace:
 
 | Section | hand-set | learned | |
 |---|---|---|---|
-| `limitations` | +0.100 | **−0.183** | sign flipped |
-| `discussion` | +0.100 | **−0.134** | sign flipped |
-| `results` | +0.160 | −0.008 | second-largest prior, learned ≈ 0 |
-| `body` | 0.000 | +0.123 | unlisted, actually useful |
-| `background` | 0.000 | −0.066 | unlisted, actively bad |
-| `abstract` | +0.180 | +0.130 | agrees in direction |
+| `body` | 0.000 | **+0.166** | unlisted, most useful of all |
+| `abstract` | +0.180 | +0.130 | agrees |
+| `results` | +0.160 | −0.004 | 2nd-highest prior, learned ≈ 0 |
+| `discussion` | +0.100 | **−0.082** | sign flipped |
+| `methods` | +0.080 | −0.022 | sign flipped |
+| `introduction` | +0.060 | −0.000 | sign flipped |
+| `experiments` | 0.000 | −0.080 | unlisted, actively bad |
 
 Only `abstract` broadly survives. `results` — the second-highest hand-set weight
-— is learned as roughly zero, and the two sections the prior boosts by +0.10 get
-negative weights. That is the concrete version of "these weights were never fit
-to anything."
+— is learned as ≈0, and `body`, which the prior does not list at all, gets the
+largest positive weight. That is the concrete version of "these weights were
+never fit to anything."
 
-**Negative sampling was worth more than the model choice.** Training on the top
-20 BM25 hard negatives scored 0.264 on dev; the full candidate pool scored
-0.443. Subsampling trains on a distribution the model is never served — at
-inference it ranks all ~43 candidates including easy negatives it never saw, and
-scores them confidently. Classic train/serve skew, and it cost more than the gap
-between logistic regression and gradient boosting.
+**Negative sampling mattered more than model choice.** Training on the top 20
+BM25 hard negatives scored 0.264 on dev; the full candidate pool scored 0.443.
+Subsampling trains on a distribution the model is never served — at inference it
+ranks all candidates including easy negatives it never saw. Classic train/serve
+skew, and it cost more than the gap between logistic regression and GBDT.
 
 ```bash
-python -m eval.train_reranker
+python -m eval.train_reranker                  # needs libomp for LambdaMART
+python -m eval.train_reranker --no-lambdamart  # sklearn models only
 ```
+
+LightGBM links a system OpenMP runtime — `brew install libomp` on macOS,
+bundled in Linux wheels. `train_reranker` degrades to the sklearn models with an
+actionable message rather than crashing.
 
 ### What these numbers do not show
 
@@ -332,18 +359,18 @@ are not in this table because they have not been run.
 
 **Embeddings are the hash fallback,** not OpenAI. See the note below.
 
-**The reranker's test fold is 8 papers / 108 queries.** Its interval
-[0.234, 0.366] is wide, and the dev→test drop (0.443 → 0.298) is larger than
-the margin over BM25. The direction is significant; the magnitude should not be
-quoted precisely.
+**The reranker's CV→holdout gap is 0.522 → 0.483.** Real, but far smaller
+than the margin over BM25 (+0.159), and much better than the 0.443 → 0.298 gap
+at the previous corpus size. Fold-to-fold std is 0.011.
 
 **The reranker is not wired into the serving path yet.** These are offline
 numbers on a frozen corpus.
 
 ### The regression gate
 
-`eval/baselines.json` pins the measured values; `tests/test_eval_harness.py`
-fails the build if nDCG@10 drops more than 0.005 below them. The tolerance is
+`eval/baselines.json` pins the measured values on the 168-paper corpus;
+`tests/test_eval_harness.py` fails the build if nDCG@10 drops more than 0.005
+below them. The tolerance is
 0.005 rather than the CI half-width (~0.028) because the point estimate is
 fully deterministic — verified, not assumed — so run-to-run variance is zero
 and the gate only needs to absorb rounding.
@@ -378,16 +405,15 @@ Note the metric name: `test_recall.py` calls it "recall" but computes hit@k
 
 ### Corpus
 
-42 papers, stratified across cs.LG / cs.CL / cs.CV / stat.ML and 2022–2025,
+168 papers, stratified across cs.LG / cs.CL / cs.CV / stat.ML and 2020–2025,
 pinned by arXiv id *and version* in `eval/corpus/papers.txt`, with each PDF's
 sha256 in `manifest.json`. PDFs are not committed (200MB) — they are re-fetchable
 and hash-verified. Derived artifacts are committed so CI never hits the network.
 
 Extraction quality is recorded per paper, and it is not perfect — deliberately:
 
-- **4.8%** (2/42) fail extraction entirely and fall back to abstract-only
-- **9.5%** (4/42) hit the `body` fallback, where no section header was recognised
-- **78 sections** hit the 8000-char truncation cap in `pdf_extractor.py`
+- **3.6%** (6/168) fail extraction entirely and fall back to abstract-only
+- **9.5%** (16/168) hit the `body` fallback, where no section header was recognised
 
 Those failure modes are *in* the corpus rather than filtered out of it, so the
 benchmark measures the pipeline that exists.

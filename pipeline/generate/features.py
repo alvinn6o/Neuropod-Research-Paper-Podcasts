@@ -29,15 +29,22 @@ SECTIONS = [
 
 FEATURE_NAMES = [
     "bm25",
+    "bm25_z",
     "bm25_rank_recip",
     "dense",
+    "dense_z",
     "dense_rank_recip",
+    "score_agreement",
     "term_overlap",
+    "term_coverage",
     "idf_overlap",
+    "max_sent_overlap",
     "chunk_tokens",
     "rel_position",
+    "is_section_start",
     "numeric_density",
     "number_match",
+    "query_tokens",
     *[f"section_{s}" for s in SECTIONS],
 ]
 
@@ -85,6 +92,18 @@ def build_features(
     max_bm25 = max(bm25.values()) or 1.0
     n_chunks = len(chunks) or 1
 
+    # Within-query standardization as well as max-normalization. They encode
+    # different things: max-norm says "how close to the best candidate", z-score
+    # says "how far above the pack". A query where everything scores similarly
+    # is a different situation from one with a clear winner, and only the
+    # z-score can express that.
+    bm_vals = list(bm25.values())
+    bm_mu = sum(bm_vals) / len(bm_vals) if bm_vals else 0.0
+    bm_sd = (sum((v - bm_mu) ** 2 for v in bm_vals) / len(bm_vals)) ** 0.5 if bm_vals else 0.0
+    dn_vals = list(dense.values()) or [0.0]
+    dn_mu = sum(dn_vals) / len(dn_vals)
+    dn_sd = (sum((v - dn_mu) ** 2 for v in dn_vals) / len(dn_vals)) ** 0.5
+
     out: list[Candidate] = []
     for chunk in chunks:
         cid = chunk["id"]
@@ -99,13 +118,36 @@ def build_features(
         c_numbers = _numbers(chunk["content"])
         tokens_in_chunk = len(c_tokens) or 1
 
+        # Best single sentence, not the whole chunk. A chunk that answers the
+        # query in one sentence and then drifts is diluted by whole-chunk
+        # overlap; this recovers it.
+        max_sent = 0.0
+        for sent in re.split(r"(?<=[.!?])\s+", chunk["content"]):
+            s_tokens = set(tokenize(sent))
+            if s_tokens and q_tokens:
+                max_sent = max(max_sent, len(q_tokens & s_tokens) / len(q_tokens))
+
+        bm_raw = bm25.get(cid, 0.0)
+        dn_raw = dense.get(cid, 0.0)
+        bm_r = bm25_rank.get(cid, n_chunks)
+        dn_r = dense_rank.get(cid, n_chunks) if dense else n_chunks
+
         feats = {
-            "bm25": bm25.get(cid, 0.0) / max_bm25,
-            "bm25_rank_recip": 1.0 / bm25_rank.get(cid, n_chunks),
-            "dense": dense.get(cid, 0.0),
-            "dense_rank_recip": 1.0 / dense_rank.get(cid, n_chunks) if dense else 0.0,
+            "bm25": bm_raw / max_bm25,
+            "bm25_z": (bm_raw - bm_mu) / bm_sd if bm_sd else 0.0,
+            "bm25_rank_recip": 1.0 / bm_r,
+            "dense": dn_raw,
+            "dense_z": (dn_raw - dn_mu) / dn_sd if dn_sd else 0.0,
+            "dense_rank_recip": 1.0 / dn_r if dense else 0.0,
+            # Both retrievers agreeing is the signal RRF exploits; given here
+            # explicitly so the model can weight it rather than rediscover it.
+            "score_agreement": 1.0 / (1.0 + abs(bm_r - dn_r)),
             "term_overlap": overlap,
+            "term_coverage": len(shared) / len(c_tokens) if c_tokens else 0.0,
             "idf_overlap": math.log1p(idf_overlap),
+            "max_sent_overlap": max_sent,
+            "is_section_start": 1.0 if chunk.get("chunk_index", 0) == 0 else 0.0,
+            "query_tokens": math.log1p(len(q_tokens)),
             # Log-scaled: chunk lengths are roughly log-normal and a raw count
             # lets one long chunk dominate a linear model's gradient.
             "chunk_tokens": math.log1p(len(chunk["content"].split())),

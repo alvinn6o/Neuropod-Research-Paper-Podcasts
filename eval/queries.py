@@ -172,7 +172,11 @@ def redact_pool(paper_chunks: list[dict], query: EvalQuery) -> list[dict]:
         if chunk["id"] == query.gold_chunk_id:
             out.append({**chunk, "content": _strip_sentence(chunk["content"], query.query)})
             continue
-        victim = _pick_sentence(chunk["content"], f"{query.query_id}:{chunk['id']}")
+        # Seeded by chunk id alone, not (query, chunk): each chunk then has one
+        # canonical redacted form, so its embedding and features can be cached
+        # across all queries. The leak is closed by every chunk losing *a*
+        # sentence, not by which sentence, so this costs nothing.
+        victim = _pick_sentence(chunk["content"], chunk["id"])
         content = _strip_sentence(chunk["content"], victim) if victim else chunk["content"]
         out.append({**chunk, "content": content})
     return out

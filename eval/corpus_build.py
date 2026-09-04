@@ -61,9 +61,20 @@ def _get(url: str, timeout: int = 60) -> bytes:
 
 
 def select(per_category: int, start_year: int, end_year: int) -> None:
-    """Query arXiv and pin the resulting ids. Run once; commit papers.txt."""
+    """Query arXiv and pin the resulting ids. Additive by default.
+
+    Existing pins are preserved and new ones appended, so growing the corpus is
+    a superset rather than a resample. A resampled corpus would make every
+    previously published number incomparable for no reason.
+    """
     CORPUS_DIR.mkdir(parents=True, exist_ok=True)
     seen: list[str] = []
+    if PAPERS_TXT.exists():
+        seen = [
+            line.strip() for line in PAPERS_TXT.read_text().splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+        print(f"  keeping {len(seen)} already-pinned papers")
     for category in CATEGORIES:
         for year in range(start_year, end_year + 1):
             query = (
@@ -93,11 +104,12 @@ def select(per_category: int, start_year: int, end_year: int) -> None:
 
     PAPERS_TXT.write_text(
         "# Frozen evaluation corpus. Pinned arXiv ids WITH version.\n"
-        "# Regenerate deliberately (python -m eval.corpus_build select); never at run time.\n"
+        "# Additive: `select` appends, never resamples, so the corpus stays a\n"
+        "# superset and old numbers remain interpretable.\n"
         + "\n".join(seen)
         + "\n"
     )
-    print(f"pinned {len(seen)} papers -> {PAPERS_TXT}")
+    print(f"pinned {len(seen)} papers total -> {PAPERS_TXT}")
 
 
 def _pinned_ids() -> list[str]:

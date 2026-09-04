@@ -1,24 +1,29 @@
-"""Train a learned reranker to replace the hand-set section prior.
+"""Train and evaluate a learned reranker.
 
-Motivation is measured, not assumed. `Retriever.section_bonus` adds a constant
-per section (abstract 0.18, results 0.16, ...) straight onto a cosine score, and
-the Phase 1 ablation showed it is significantly *harmful*: dense -> dense+prior
-costs 0.027 nDCG@10, CI [-0.043, -0.012], p<0.001. Those weights were never fit
-to anything. This fits them.
+Motivation is measured. `Retriever.section_bonus` adds a hand-set constant per
+section straight onto a cosine score, and the ablation shows it is significantly
+harmful (dense -> dense+prior = -0.041 nDCG@10, p<0.001). Those weights were
+never fit to anything. This fits them.
 
-Splits are grouped by PAPER, never by query. Queries from one paper share the
-same chunk pool, so a query-level split leaks the answer: a model could memorize
-"chunk 17 of paper X is a good answer" from the train fold and be scored on it
-in test. Grouping by paper is the difference between a real held-out number and
-a flattering one.
+Two disciplines matter more here than the model choice:
 
-The test fold is scored once, at the end. Model selection happens on dev.
+**Grouping by paper, never by query.** Queries from one paper share a chunk
+pool, so a query-level split lets a model memorize "chunk 17 of paper X is a
+good answer" in train and be rewarded for it in test.
+
+**Cross-validation, not one split.** With tens of papers a single split has
+enormous variance — an earlier version showed dev 0.443 vs test 0.298, a gap
+larger than the margin being claimed. GroupKFold over papers gives a mean and a
+spread across folds, so "better" is a claim about the corpus rather than about
+one lucky partition. A final held-out set is still kept and scored once.
 
 Usage:
     python -m eval.train_reranker
+    python -m eval.train_reranker --no-lambdamart   # skip LightGBM
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from collections import defaultdict
@@ -31,7 +36,6 @@ sys.path.insert(0, str(ROOT))
 
 from eval import queries as q_mod
 from eval.metrics import ndcg_at_k, paired_bootstrap, summarize
-from pipeline.generate.bm25 import BM25Index
 from pipeline.generate.embedder import HashEmbedder
 from pipeline.generate.features import FEATURE_NAMES, SECTIONS, build_features
 from pipeline.generate.retriever import Retriever
@@ -39,225 +43,297 @@ from pipeline.generate.retriever import Retriever
 MODEL_PATH = ROOT / "eval" / "reranker.json"
 RESULTS_PATH = ROOT / "eval" / "reranker_results.json"
 
-# Papers, not queries. Sorted then sliced so the split is reproducible.
-TRAIN_FRAC, DEV_FRAC = 0.60, 0.20
+HOLDOUT_FRAC = 0.20
+N_FOLDS = 5
 
 
-def load_dataset():
+# ---------------------------------------------------------------------------
+# Data
+# ---------------------------------------------------------------------------
+
+def load_dataset(verbose: bool = True):
     chunks = q_mod.load_chunks()
     queries = q_mod.read(q_mod.ICT_QUERIES)
     if not queries:
         raise SystemExit("no queries — run `python -m eval.queries --mode ict`")
 
     embedder = HashEmbedder()
-    by_paper = defaultdict(list)
+    by_paper: dict[str, list[dict]] = defaultdict(list)
     for c in chunks:
         by_paper[c["paper_id"]].append(c)
-    redacted = q_mod.redact_gold(chunks, queries)
+
+    # Redaction is seeded per chunk, so each chunk has one canonical redacted
+    # form and its embedding is computed once rather than once per query.
+    pool_cache: dict[str, list[dict]] = {}
+    emb_cache: dict[str, np.ndarray] = {}
+    for paper_id, paper_chunks in by_paper.items():
+        dummy = q_mod.EvalQuery("", paper_id, "", "", "ict", "")
+        pool = q_mod.redact_pool(paper_chunks, dummy)
+        pool_cache[paper_id] = pool
+        for c in pool:
+            emb_cache[c["id"]] = np.asarray(embedder.embed_text(c["content"]))
 
     rows = []
-    for query in queries:
-        gold = redacted.get(query.query_id)
-        if gold is None or len(gold["content"].split()) < 5:
+    for i, query in enumerate(queries):
+        if verbose and i and i % 500 == 0:
+            print(f"    {i}/{len(queries)} queries featurized", flush=True)
+        pool = pool_cache.get(query.paper_id)
+        if not pool:
             continue
-        paper_chunks = q_mod.redact_pool(by_paper[query.paper_id], query)
-        qv = embedder.embed_text(query.query)
-        dense = {
-            c["id"]: float(np.dot(qv, embedder.embed_text(c["content"])))
-            for c in paper_chunks
-        }
+        # Only the gold chunk differs from the cached pool: it loses the query
+        # sentence specifically rather than its canonical one.
+        gold_txt = None
+        paper_chunks = []
+        for c in pool:
+            if c["id"] == query.gold_chunk_id:
+                base = next(x for x in by_paper[query.paper_id] if x["id"] == c["id"])
+                gold_txt = q_mod._strip_sentence(base["content"], query.query)
+                paper_chunks.append({**c, "content": gold_txt})
+            else:
+                paper_chunks.append(c)
+        if gold_txt is None or len(gold_txt.split()) < 5:
+            continue
 
-        cands = build_features(paper_chunks, query.query, dense_scores=dense)
+        qv = np.asarray(embedder.embed_text(query.query))
+        dense = {}
+        for c in paper_chunks:
+            v = (np.asarray(embedder.embed_text(c["content"]))
+                 if c["id"] == query.gold_chunk_id else emb_cache[c["id"]])
+            dense[c["id"]] = float(qv @ v)
+
         rows.append({
             "query_id": query.query_id,
             "paper_id": query.paper_id,
-            "query": query.query,
             "gold": query.gold_chunk_id,
-            "candidates": cands,
+            "candidates": build_features(paper_chunks, query.query, dense_scores=dense),
         })
     return rows
 
 
-def split_by_paper(rows):
-    papers = sorted({r["paper_id"] for r in rows})
-    n = len(papers)
-    n_train = int(n * TRAIN_FRAC)
-    n_dev = int(n * DEV_FRAC)
-    train_p = set(papers[:n_train])
-    dev_p = set(papers[n_train:n_train + n_dev])
-    test_p = set(papers[n_train + n_dev:])
-    assert not (train_p & dev_p) and not (train_p & test_p) and not (dev_p & test_p)
-    return (
-        [r for r in rows if r["paper_id"] in train_p],
-        [r for r in rows if r["paper_id"] in dev_p],
-        [r for r in rows if r["paper_id"] in test_p],
-        (train_p, dev_p, test_p),
-    )
+def to_matrix(rows):
+    """Flatten to (X, y, group_sizes, query_ids). Full candidate pool.
 
-
-def to_matrix(rows, *, negatives_per_query: int | None = None, seed: int = 0):
-    """Flatten to (X, y, group_ids).
-
-    `negatives_per_query=None` keeps every candidate; an int keeps the gold plus
-    that many highest-BM25 non-gold chunks.
-
-    Subsampling has a sharp cost that is easy to miss: the model then trains on
-    a different candidate distribution than it is served, since evaluation
-    always uses the full pool. Measured on dev, top-20 hard negatives scores
-    *below random* while the full pool does not — the model never saw the easy
-    negatives it is asked to rank at serving time and happily scores them high.
-    This is train/serve skew, not a modelling failure.
+    No negative subsampling: measured on dev, top-20 hard negatives scored 0.264
+    against 0.443 for the full pool. Subsampling trains on a distribution the
+    model is never served — at inference it ranks every candidate, including
+    easy negatives it never saw, and scores them confidently. Train/serve skew.
     """
-    rng = np.random.default_rng(seed)
-    X, y, groups = [], [], []
+    X, y, groups, qids = [], [], [], []
     for r in rows:
-        cands = r["candidates"]
-        gold_idx = [i for i, c in enumerate(cands) if c.chunk_id == r["gold"]]
-        if not gold_idx:
-            continue
-        keep = set(gold_idx)
-        if negatives_per_query is None:
-            keep.update(range(len(cands)))          # every candidate
-        else:
-            neg = [i for i in range(len(cands)) if i not in keep]
-            # Hard negatives: the highest-BM25 non-gold chunks. Random negatives
-            # are trivially separable and teach the model almost nothing.
-            bm = FEATURE_NAMES.index("bm25")
-            neg.sort(key=lambda i: cands[i].features[bm], reverse=True)
-            keep.update(neg[:negatives_per_query])
-        for i in sorted(keep):
-            X.append(cands[i].features)
-            y.append(1 if i in gold_idx else 0)
-            groups.append(r["query_id"])
-    return np.asarray(X, dtype=np.float64), np.asarray(y), groups
-
-
-def rank_with(scorer, rows, limit: int = 20):
-    """Score every candidate and return {query_id: ranked chunk ids}."""
-    run = {}
-    for r in rows:
-        X = np.asarray([c.features for c in r["candidates"]], dtype=np.float64)
-        scores = scorer(X)
-        order = np.argsort(-scores)
-        run[r["query_id"]] = [r["candidates"][i].chunk_id for i in order[:limit]]
-    return run
-
-
-def baseline_runs(rows, limit: int = 20):
-    """Reference systems, recomputed from the same candidate objects."""
-    bm25_i = FEATURE_NAMES.index("bm25")
-    dense_i = FEATURE_NAMES.index("dense")
-    runs = {"bm25": {}, "dense+prior": {}}
-    for r in rows:
-        cands = r["candidates"]
-        bm = np.asarray([c.features[bm25_i] for c in cands])
-        runs["bm25"][r["query_id"]] = [
-            cands[i].chunk_id for i in np.argsort(-bm)[:limit]
-        ]
-        prior = np.asarray([
-            c.features[dense_i] + Retriever.section_bonus.get(c.section, 0.0) for c in cands
-        ])
-        runs["dense+prior"][r["query_id"]] = [
-            cands[i].chunk_id for i in np.argsort(-prior)[:limit]
-        ]
-    return runs
+        n = 0
+        for c in r["candidates"]:
+            X.append(c.features)
+            y.append(1 if c.chunk_id == r["gold"] else 0)
+            n += 1
+        groups.append(n)
+        qids.append(r["query_id"])
+    return np.asarray(X, dtype=np.float64), np.asarray(y), groups, qids
 
 
 def qrels_for(rows):
     return {r["query_id"]: {r["gold"]: 2} for r in rows}
 
 
-def main() -> None:
+def split_by_paper(rows, holdout_frac: float = HOLDOUT_FRAC):
+    """(cv_pool, holdout, holdout_paper_ids), partitioned by PAPER.
+
+    One helper so main() and the tests cannot disagree about what the holdout
+    is — a split defined twice is a split that eventually differs.
+    """
+    papers = sorted({r["paper_id"] for r in rows})
+    n_hold = max(1, int(len(papers) * holdout_frac))
+    holdout = set(papers[-n_hold:])
+    return (
+        [r for r in rows if r["paper_id"] not in holdout],
+        [r for r in rows if r["paper_id"] in holdout],
+        holdout,
+    )
+
+
+def rank_with(scorer, rows, limit: int = 20):
+    run = {}
+    for r in rows:
+        X = np.asarray([c.features for c in r["candidates"]], dtype=np.float64)
+        order = np.argsort(-scorer(X))
+        run[r["query_id"]] = [r["candidates"][i].chunk_id for i in order[:limit]]
+    return run
+
+
+def baseline_runs(rows, limit: int = 20):
+    bm_i, dn_i = FEATURE_NAMES.index("bm25"), FEATURE_NAMES.index("dense")
+    runs = {"bm25": {}, "dense+prior": {}}
+    for r in rows:
+        cands = r["candidates"]
+        bm = np.asarray([c.features[bm_i] for c in cands])
+        runs["bm25"][r["query_id"]] = [cands[i].chunk_id for i in np.argsort(-bm)[:limit]]
+        pr = np.asarray([c.features[dn_i] + Retriever.section_bonus.get(c.section, 0.0)
+                         for c in cands])
+        runs["dense+prior"][r["query_id"]] = [cands[i].chunk_id for i in np.argsort(-pr)[:limit]]
+    return runs
+
+
+def ndcg_of(run, qrels, k: int = 10) -> list[float]:
+    return [ndcg_at_k(run[q], qrels[q], k) for q in sorted(qrels) if q in run]
+
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+
+def _lightgbm():
+    """Import LightGBM, or return None with an actionable message.
+
+    LightGBM links against a system OpenMP runtime. Linux wheels bundle it, but
+    on macOS it needs `brew install libomp` — so this is the one dependency that
+    can be installed correctly by pip and still fail to import. Degrading to the
+    sklearn models keeps the pipeline runnable rather than erroring on a machine
+    that just hasn't run brew yet.
+    """
+    try:
+        import lightgbm as lgb
+        return lgb
+    except ImportError:
+        print("  lightgbm not installed — skipping LambdaMART")
+    except OSError as exc:
+        print(f"  lightgbm present but its OpenMP runtime is missing ({exc.__class__.__name__}).")
+        print("  macOS: brew install libomp    Debian/Ubuntu: apt-get install libgomp1")
+    return None
+
+
+def fit_models(train_rows, *, use_lambdamart: bool):
     from sklearn.ensemble import HistGradientBoostingClassifier
     from sklearn.linear_model import LogisticRegression
     from sklearn.preprocessing import StandardScaler
 
-    print("building features...")
-    rows = load_dataset()
-    train, dev, test, (tp, dp, sp) = split_by_paper(rows)
-    print(f"  {len(rows)} queries over {len({r['paper_id'] for r in rows})} papers")
-    print(f"  train {len(train)}q/{len(tp)}p   dev {len(dev)}q/{len(dp)}p   test {len(test)}q/{len(sp)}p")
-    print("  split is by PAPER — no paper appears in two folds")
+    X, y, groups, _ = to_matrix(train_rows)
+    scaler = StandardScaler().fit(X)
 
-    # Full candidate pool, not subsampled negatives. Selected on dev: top-20
-    # hard negatives scored 0.264 and the full pool 0.443 (gbdt), because
-    # subsampling trains on a different distribution than serving uses.
-    Xtr, ytr, _ = to_matrix(train, negatives_per_query=None, seed=0)
-    print(f"  train matrix {Xtr.shape}, positives {int(ytr.sum())} ({ytr.mean():.1%})")
-
-    scaler = StandardScaler().fit(Xtr)
-
-    linear = LogisticRegression(max_iter=2000, C=1.0, class_weight="balanced")
-    linear.fit(scaler.transform(Xtr), ytr)
+    linear = LogisticRegression(max_iter=3000, C=1.0, class_weight="balanced")
+    linear.fit(scaler.transform(X), y)
 
     gbdt = HistGradientBoostingClassifier(
-        max_iter=200, learning_rate=0.08, max_leaf_nodes=15,
+        max_iter=300, learning_rate=0.06, max_leaf_nodes=15,
         min_samples_leaf=20, l2_regularization=1.0, random_state=0,
-    )
-    gbdt.fit(Xtr, ytr)
+    ).fit(X, y)
 
     models = {
-        "linear": lambda X: linear.decision_function(scaler.transform(X)),
-        "gbdt": lambda X: gbdt.predict_proba(X)[:, 1],
+        "linear": lambda Z: linear.decision_function(scaler.transform(Z)),
+        "gbdt": lambda Z: gbdt.predict_proba(Z)[:, 1],
     }
+    extra = {"linear_obj": linear, "scaler": scaler}
 
-    # ---- dev: choose the model here, not on test ----
-    print("\ndev (model selection)")
-    print("-" * 70)
-    dev_qrels = qrels_for(dev)
-    dev_runs = {**baseline_runs(dev), **{n: rank_with(f, dev) for n, f in models.items()}}
-    dev_scores = {}
-    for name, run in dev_runs.items():
-        vals = [ndcg_at_k(run[q], dev_qrels[q], 10) for q in sorted(dev_qrels)]
-        dev_scores[name] = sum(vals) / len(vals)
-        print(f"  {name:<14} nDCG@10 = {dev_scores[name]:.4f}")
-    best = max(models, key=lambda n: dev_scores[n])
-    print(f"  -> selected '{best}' on dev")
+    if use_lambdamart:
+        lgb = _lightgbm()
+        if lgb is None:
+            return models, extra
+        # LambdaMART: optimizes NDCG directly over query groups, rather than
+        # classifying each candidate independently and hoping the induced order
+        # is good. The group structure is the whole point — it is the only one
+        # of these three that knows candidates compete within a query.
+        ranker = lgb.LGBMRanker(
+            objective="lambdarank", metric="ndcg",
+            n_estimators=300, learning_rate=0.06, num_leaves=15,
+            min_child_samples=20, reg_lambda=1.0, random_state=0, verbose=-1,
+        )
+        ranker.fit(X, y, group=groups)
+        models["lambdamart"] = lambda Z: ranker.predict(Z)
+        extra["lambdamart_obj"] = ranker
+    return models, extra
 
-    # ---- test: touched once ----
-    print("\ntest (held-out papers, scored once)")
-    print("=" * 70)
-    test_qrels = qrels_for(test)
-    test_runs = {**baseline_runs(test), **{n: rank_with(f, test) for n, f in models.items()}}
-    per_query = {}
-    for name, run in test_runs.items():
-        vals = [ndcg_at_k(run[q], test_qrels[q], 10) for q in sorted(test_qrels)]
-        per_query[name] = vals
-        s = summarize(f"{name} nDCG@10", vals)
-        print(f"  {s}")
 
-    print("\npaired bootstrap vs bm25 (test)")
-    print("-" * 70)
-    results = {"dev": dev_scores, "test": {}, "paired": {}}
-    for name in test_runs:
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
+
+def cross_validate(rows, *, use_lambdamart: bool, n_folds: int = N_FOLDS):
+    """GroupKFold over papers. Returns {model: [fold means]}."""
+    papers = sorted({r["paper_id"] for r in rows})
+    folds = [set(papers[i::n_folds]) for i in range(n_folds)]
+    scores: dict[str, list[float]] = defaultdict(list)
+
+    for i, held in enumerate(folds, start=1):
+        tr = [r for r in rows if r["paper_id"] not in held]
+        te = [r for r in rows if r["paper_id"] in held]
+        if not te or not tr:
+            continue
+        qrels = qrels_for(te)
+        models, _ = fit_models(tr, use_lambdamart=use_lambdamart)
+        runs = {**baseline_runs(te), **{n: rank_with(f, te) for n, f in models.items()}}
+        for name, run in runs.items():
+            scores[name].append(float(np.mean(ndcg_of(run, qrels))))
+        print(f"    fold {i}/{n_folds}: {len(tr)} train / {len(te)} test queries", flush=True)
+    return scores
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--no-lambdamart", action="store_true")
+    ap.add_argument("--folds", type=int, default=N_FOLDS)
+    args = ap.parse_args()
+    use_lm = not args.no_lambdamart
+
+    print("building features...")
+    rows = load_dataset()
+    papers = sorted({r["paper_id"] for r in rows})
+    dev_rows, hold_rows, holdout_papers = split_by_paper(rows)
+    n_hold = len(holdout_papers)
+
+    print(f"  {len(rows)} queries over {len(papers)} papers")
+    print(f"  cv pool: {len(dev_rows)}q/{len(papers)-n_hold}p    holdout: {len(hold_rows)}q/{n_hold}p")
+    print(f"  grouping is by PAPER throughout — no paper spans two folds")
+
+    print(f"\ncross-validation ({args.folds}-fold, grouped by paper)")
+    print("=" * 78)
+    cv = cross_validate(dev_rows, use_lambdamart=use_lm, n_folds=args.folds)
+    print(f"\n  {'model':<14} {'mean nDCG@10':>14} {'std':>8}   per-fold")
+    print("  " + "-" * 74)
+    for name, vals in sorted(cv.items(), key=lambda kv: -np.mean(kv[1])):
+        folds = " ".join(f"{v:.3f}" for v in vals)
+        print(f"  {name:<14} {np.mean(vals):>14.4f} {np.std(vals):>8.4f}   {folds}")
+
+    learned = [n for n in cv if n not in {"bm25", "dense+prior"}]
+    best = max(learned, key=lambda n: float(np.mean(cv[n])))
+    print(f"\n  -> selected '{best}' by CV mean")
+
+    print("\nheld-out papers (scored once)")
+    print("=" * 78)
+    models, extra = fit_models(dev_rows, use_lambdamart=use_lm)
+    qrels = qrels_for(hold_rows)
+    runs = {**baseline_runs(hold_rows), **{n: rank_with(f, hold_rows) for n, f in models.items()}}
+    per_query = {n: ndcg_of(run, qrels) for n, run in runs.items()}
+    for name in sorted(per_query, key=lambda n: -float(np.mean(per_query[n]))):
+        print(f"  {summarize(f'{name} nDCG@10', per_query[name])}")
+
+    print("\npaired bootstrap vs bm25 (holdout)")
+    print("-" * 78)
+    results = {"cv": {k: v for k, v in cv.items()}, "holdout": {}, "paired": {}, "selected": best}
+    for name in per_query:
         if name == "bm25":
             continue
         pr = paired_bootstrap(per_query["bm25"], per_query[name])
-        verdict = "significant" if pr.significant else "not significant"
         print(f"  {name:<14} delta={pr.delta:+.4f} CI[{pr.ci_low:+.4f},{pr.ci_high:+.4f}] "
-              f"p={pr.p_value:.3f}  {verdict}")
+              f"p={pr.p_value:.3f}  {'significant' if pr.significant else 'not significant'}")
         results["paired"][name] = vars(pr)
     for name, vals in per_query.items():
-        results["test"][name] = {"ndcg@10": sum(vals) / len(vals), "n": len(vals)}
+        results["holdout"][name] = {"ndcg@10": float(np.mean(vals)), "n": len(vals)}
 
-    # ---- what the linear model learned about sections ----
-    print("\nlearned section weights vs the hand-set prior")
-    print("-" * 70)
-    print(f"  {'section':<14} {'hand-set':>10} {'learned':>10}")
+    linear = extra["linear_obj"]
     coefs = dict(zip(FEATURE_NAMES, linear.coef_[0]))
-    section_report = {}
+    print("\nlearned section weights vs the hand-set prior")
+    print("-" * 78)
+    print(f"  {'section':<14} {'hand-set':>10} {'learned':>10}")
+    results["section_weights"] = {}
     for s in SECTIONS:
         hand = Retriever.section_bonus.get(s, 0.0)
-        learned = coefs[f"section_{s}"]
-        section_report[s] = {"hand_set": hand, "learned": float(learned)}
-        print(f"  {s:<14} {hand:>10.3f} {learned:>10.3f}")
-    results["section_weights"] = section_report
+        got = float(coefs[f"section_{s}"])
+        results["section_weights"][s] = {"hand_set": hand, "learned": got}
+        flag = "  <- sign flip" if hand > 0 and got < 0 else ""
+        print(f"  {s:<14} {hand:>10.3f} {got:>10.3f}{flag}")
 
     print("\ntop features by |coefficient| (linear)")
-    print("-" * 70)
-    ranked = sorted(coefs.items(), key=lambda kv: -abs(kv[1]))[:8]
-    for name, w in ranked:
-        print(f"  {name:<22} {w:+.3f}")
+    print("-" * 78)
+    for name, w in sorted(coefs.items(), key=lambda kv: -abs(kv[1]))[:10]:
+        print(f"  {name:<24} {w:+.3f}")
     results["coefficients"] = {k: float(v) for k, v in coefs.items()}
 
     MODEL_PATH.write_text(json.dumps({
@@ -265,9 +341,10 @@ def main() -> None:
         "feature_names": FEATURE_NAMES,
         "coef": [float(c) for c in linear.coef_[0]],
         "intercept": float(linear.intercept_[0]),
-        "scaler_mean": scaler.mean_.tolist(),
-        "scaler_scale": scaler.scale_.tolist(),
-        "trained_on": {"papers": sorted(tp), "queries": len(train)},
+        "scaler_mean": extra["scaler"].mean_.tolist(),
+        "scaler_scale": extra["scaler"].scale_.tolist(),
+        "n_train_queries": len(dev_rows),
+        "n_train_papers": len(papers) - n_hold,
     }, indent=2))
     RESULTS_PATH.write_text(json.dumps(results, indent=2))
     print(f"\nmodel  -> {MODEL_PATH}")

@@ -21,10 +21,19 @@ PyJWT[crypto]==2.13.0
 boto3==1.43.82
 tiktoken==0.14.0          # exact token counts for chunk sizing + cost accounting
 
-# Learned reranker. scikit-learn rather than LightGBM deliberately: LightGBM
-# needs a system OpenMP runtime (`brew install libomp` on macOS), so it trains
-# in CI but not on a clean dev machine. A model you cannot retrain locally is a
-# model you cannot debug. sklearn's wheels vendor their own OpenMP.
+# Learned reranker.
+#
+# LightGBM provides LambdaMART (objective=lambdarank), which optimizes NDCG
+# directly over query groups instead of classifying candidates independently.
+# Measured, that is worth +0.09 nDCG@10 over the same-family sklearn GBDT — the
+# largest single modelling gain in the project, so it earns the dependency.
+#
+# It is the one dependency pip can install correctly and still fail to import:
+# it links a system OpenMP runtime. Linux wheels bundle it; macOS needs
+#     brew install libomp
+# eval/train_reranker.py degrades to the sklearn models with an actionable
+# message rather than crashing, so nothing here is a hard blocker.
+lightgbm==4.7.0
 scikit-learn==1.7.2
 numpy==2.4.6
 scipy==1.17.1
@@ -50,6 +59,7 @@ pydantic==2.13.5
 pydantic-core==2.46.5
 python-dateutil==2.9.0.post0
 PyYAML==6.0.3
+narwhals==2.25.0    # lightgbm
 regex==2026.7.19
 requests==2.34.2
 s3transfer==0.19.2

@@ -21,32 +21,32 @@
     "run-to-run variance is zero and the gate only absorbs rounding."
   ],
   "corpus": {
-    "papers": 42,
-    "queries": 472,
+    "papers": 168,
+    "queries": 1935,
     "query_source": "ict",
     "embedder": "hash-bow-v1"
   },
   "tolerance": 0.005,
   "configs": {
     "current": {
-      "ndcg@10": 0.2464,
-      "mrr": 0.1848,
-      "hit@1": 0.0508
+      "ndcg@10": 0.2805,
+      "mrr": 0.2132,
+      "hit@1": 0.0729
     },
     "bm25": {
-      "ndcg@10": 0.3391,
-      "mrr": 0.2634,
-      "hit@1": 0.0932
+      "ndcg@10": 0.36,
+      "mrr": 0.2803,
+      "hit@1": 0.1085
     },
     "dense": {
-      "ndcg@10": 0.2983,
-      "mrr": 0.2293,
-      "hit@1": 0.0784
+      "ndcg@10": 0.3188,
+      "mrr": 0.2441,
+      "hit@1": 0.0941
     }
   },
   "leak_guard": {
     "_comment": "Ranking by chunk length alone must not beat random ordering.",
-    "ndcg@10_by_length_alone": 0.0326,
-    "ndcg@10_random": 0.0747
+    "ndcg@10_by_length_alone": 0.0746,
+    "ndcg@10_random": 0.1302
   }
 }
