@@ -211,12 +211,12 @@ scoped to one paper (matching production).
 
 | Config | nDCG@10 | 95% CI | vs. baseline (paired) | |
 |---|---|---|---|---|
-| `current` (shipping) | 0.280 | [0.268, 0.294] | — | baseline |
-| `dense+prior` | 0.288 | [0.274, 0.301] | +0.007 [−0.002, +0.016] p=0.156 | not significant |
-| `dense` | 0.319 | [0.304, 0.332] | +0.038 [+0.027, +0.050] p<0.001 | significant |
-| `rrf+prior` | 0.345 | [0.332, 0.358] | +0.065 [+0.054, +0.076] p<0.001 | significant |
-| `rrf` | 0.358 | [0.344, 0.371] | +0.077 [+0.064, +0.090] p<0.001 | significant |
-| **`bm25`** | **0.360** | [0.347, 0.374] | **+0.080 [+0.065, +0.094] p<0.001** | **significant** |
+| `current` (shipping) | 0.281 | [0.268, 0.294] | — | baseline |
+| `dense+prior` | 0.284 | [0.271, 0.297] | +0.003 [−0.006, +0.012] p=0.464 | not significant |
+| `dense` | 0.318 | [0.303, 0.332] | +0.037 [+0.026, +0.049] p<0.001 | significant |
+| `rrf+prior` | 0.345 | [0.332, 0.359] | +0.065 [+0.055, +0.076] p<0.001 | significant |
+| `rrf` | 0.356 | [0.343, 0.370] | +0.075 [+0.063, +0.087] p<0.001 | significant |
+| **`bm25`** | **0.359** | [0.346, 0.373] | **+0.078 [+0.064, +0.092] p<0.001** | **significant** |
 
 ### A leak, found and fixed
 
@@ -254,8 +254,8 @@ rather than inferred from the table:
 
 | Comparison | Δ nDCG@10 | 95% CI | p | |
 |---|---|---|---|---|
-| `dense` → `dense+prior` | **−0.031** | [−0.040, −0.023] | <0.001 | significantly worse |
-| `rrf` → `rrf+prior` | **−0.012** | [−0.017, −0.007] | <0.001 | significantly worse |
+| `dense` → `dense+prior` | **−0.034** | [−0.042, −0.025] | <0.001 | significantly worse |
+| `rrf` → `rrf+prior` | **−0.011** | [−0.016, −0.005] | <0.001 | significantly worse |
 
 At the earlier corpus size (n=472) the second row was −0.009 with p=0.078 —
 *not* significant. Quadrupling the corpus resolved a real effect that the
@@ -265,8 +265,8 @@ smaller sample could not. That is the argument for corpus size, made concretely.
 "sparse fallback" is raw term-frequency cosine — no IDF, no length
 normalization, no stopwords.
 
-**3. RRF fusion does *not* beat BM25 alone here.** Δ = −0.002, CI
-[−0.011, +0.007], p=0.572, even at n=1935. Hybrid retrieval is usually the right
+**3. RRF fusion does *not* beat BM25 alone here.** Δ = −0.003, CI
+[−0.012, +0.006], p=0.480, even at n=1935. Hybrid retrieval is usually the right
 default and it did not win on this query set.
 
 ### A trained reranker
@@ -279,32 +279,53 @@ Cross-validation (134 papers, 5 folds):
 
 | Model | mean nDCG@10 | std | per-fold |
 |---|---|---|---|
-| **LambdaMART** | **0.522** | 0.011 | 0.515 0.529 0.541 0.511 0.515 |
-| GBDT (sklearn) | 0.477 | 0.029 | 0.454 0.456 0.505 0.449 0.519 |
-| Logistic regression | 0.381 | 0.007 | 0.379 0.392 0.385 0.371 0.378 |
-| BM25 | 0.368 | 0.012 | 0.369 0.382 0.379 0.355 0.352 |
-| `dense+prior` (shipping) | 0.299 | 0.012 | 0.300 0.320 0.287 0.300 0.287 |
+| **LambdaMART** | **0.502** | 0.010 | 0.497 0.510 0.517 0.495 0.489 |
+| GBDT (sklearn) | 0.498 | 0.028 | 0.503 0.515 0.524 0.445 0.506 |
+| Logistic regression | 0.376 | 0.009 | 0.381 0.388 0.379 0.362 0.372 |
+| BM25 | 0.367 | 0.012 | 0.374 0.377 0.377 0.350 0.355 |
+| `dense+prior` (shipping) | 0.296 | 0.014 | 0.296 0.321 0.283 0.293 0.284 |
 
 Held out (34 papers, 382 queries, scored once):
 
 | Model | nDCG@10 | 95% CI | vs. BM25 (paired) | |
 |---|---|---|---|---|
-| **LambdaMART** | **0.483** | [0.448, 0.517] | **+0.159 [+0.132, +0.185] p<0.001** | **significant** |
-| GBDT | 0.432 | [0.396, 0.469] | +0.108 [+0.086, +0.130] p<0.001 | significant |
-| Logistic regression | 0.325 | [0.293, 0.356] | +0.002 [−0.012, +0.016] p=0.898 | not significant |
-| BM25 | 0.324 | [0.293, 0.354] | — | baseline |
-| `dense+prior` (shipping) | 0.243 | [0.214, 0.269] | −0.081 [−0.112, −0.051] p<0.001 | significant |
+| **LambdaMART** | **0.484** | [0.449, 0.520] | **+0.160 [+0.134, +0.185] p<0.001** | **significant** |
+| GBDT | 0.423 | [0.388, 0.460] | +0.099 [+0.079, +0.122] p<0.001 | significant |
+| BM25 | 0.324 | [0.293, 0.355] | — | baseline |
+| Logistic regression | 0.320 | [0.290, 0.352] | −0.003 [−0.018, +0.011] p=0.598 | not significant |
+| `dense+prior` (shipping) | 0.237 | [0.210, 0.263] | −0.086 [−0.117, −0.057] p<0.001 | significant |
 
-**The ranking objective is worth +0.051 over the same model family.** LambdaMART
+**The ranking objective is worth +0.061 on held-out papers.** LambdaMART
 and the sklearn GBDT are both gradient-boosted trees on identical features; the
 only difference is that LambdaMART optimizes NDCG over query groups while the
 GBDT classifies each candidate independently and hopes the induced order is
 good. Knowing that candidates *compete within a query* is the single largest
 modelling gain here.
 
-**A linear model is not enough.** Logistic regression ties BM25 exactly
-(+0.002, p=0.898). The gain is not "any learned model beats a heuristic" — it
+**A linear model is not enough.** Logistic regression ties BM25
+(−0.003, p=0.598). The gain is not "any learned model beats a heuristic" — it
 needs the capacity for feature interactions.
+
+**What nDCG@10 = 0.48 actually means here.** With exactly one relevant chunk
+per query, nDCG@10 reduces to `1/log2(rank+1)` — so the headline number is a
+restatement of where the gold chunk lands. Reported as ranks instead:
+
+| k | LambdaMART hit@k | BM25 hit@k |
+|---|---|---|
+| 1 | 24.1% | 8.4% |
+| 3 | 48.4% | 33.0% |
+| 5 | 61.8% | 46.1% |
+| 10 | 75.9% | 60.7% |
+| **14** | **84.0%** | 69.1% |
+| 20 | 89.8% | 81.7% |
+
+Median gold rank is **4** (BM25: 6), out of a mean pool of 45 chunks.
+
+**hit@14 is the number that matters for this product**, not nDCG@10: the
+scriptwriter puts the top 14 chunks into the prompt, so 84.0% is the rate at
+which the relevant passage actually reaches the model — up from 69.1%. nDCG@10
+is the right metric for *comparing rankers*; hit@14 is the right one for
+deciding whether the pipeline works.
 
 **What the model learned about sections** — the interpretable model's fitted
 coefficients against the hand-set values they replace:
@@ -359,9 +380,9 @@ are not in this table because they have not been run.
 
 **Embeddings are the hash fallback,** not OpenAI. See the note below.
 
-**The reranker's CV→holdout gap is 0.522 → 0.483.** Real, but far smaller
-than the margin over BM25 (+0.159), and much better than the 0.443 → 0.298 gap
-at the previous corpus size. Fold-to-fold std is 0.011.
+**The reranker's CV→holdout gap is 0.502 → 0.484.** Real, but far smaller
+than the margin over BM25 (+0.160), and much better than the 0.443 → 0.298 gap
+at the previous corpus size. Fold-to-fold std is 0.010.
 
 **The reranker is not wired into the serving path yet.** These are offline
 numbers on a frozen corpus.

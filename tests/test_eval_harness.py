@@ -220,8 +220,16 @@ def test_chunk_length_carries_no_signal_about_which_chunk_is_gold():
     qrels = qrels_for(test)
     i_len = FEATURE_NAMES.index("chunk_tokens")
 
-    by_length = rank_with(lambda X: -X[:, i_len], test)
-    length_ndcg = sum(ndcg_at_k(by_length[q], qrels[q], 10) for q in qrels) / len(qrels)
+    # BOTH directions. An earlier version of this test only ranked shortest-
+    # first and passed while longest-first scored 0.168 against random's 0.130 —
+    # gold chunks had drifted 6.4 words longer than the rest. A one-sided test
+    # for a two-sided property is not a test.
+    shortest = rank_with(lambda X: -X[:, i_len], test)
+    longest = rank_with(lambda X: X[:, i_len], test)
+    length_ndcg = max(
+        sum(ndcg_at_k(shortest[q], qrels[q], 10) for q in qrels) / len(qrels),
+        sum(ndcg_at_k(longest[q], qrels[q], 10) for q in qrels) / len(qrels),
+    )
 
     rng = random.Random(0)
     random_ndcg = sum(
@@ -232,8 +240,8 @@ def test_chunk_length_carries_no_signal_about_which_chunk_is_gold():
         for r in test
     ) / len(test)
 
-    print(f"\n  nDCG@10 by length alone = {length_ndcg:.4f} vs random {random_ndcg:.4f}")
-    assert length_ndcg < random_ndcg * 1.5, (
+    print(f"\n  nDCG@10 by length (worst direction) = {length_ndcg:.4f} vs random {random_ndcg:.4f}")
+    assert length_ndcg < random_ndcg * 1.25, (
         f"chunk length predicts relevance (nDCG@10={length_ndcg:.4f} vs random "
         f"{random_ndcg:.4f}). The redaction is leaking again — check redact_pool."
     )
@@ -252,11 +260,15 @@ def test_gold_and_non_gold_chunk_lengths_are_comparable():
 
     at_cap_gold = sum(1 for n in gold if n >= 110) / len(gold)
     at_cap_other = sum(1 for n in other if n >= 110) / len(other)
-    print(f"\n  at-cap: gold={at_cap_gold:.1%} non-gold={at_cap_other:.1%}")
+    mean_gap = abs(sum(gold) / len(gold) - sum(other) / len(other))
+    print(f"\n  at-cap: gold={at_cap_gold:.1%} non-gold={at_cap_other:.1%}  mean gap={mean_gap:.1f}w")
     assert abs(at_cap_gold - at_cap_other) < 0.10, (
         "gold and non-gold chunks differ in how often they hit the 110-word cap; "
         "that alone identifies the gold chunk"
     )
+    # The mean gap is the residual the redaction cannot fully remove: gold loses
+    # its query sentence, others lose a length-matched sentence of their own.
+    assert mean_gap < 8.0, f"gold chunks drift {mean_gap:.1f} words from the rest"
 
 
 # ---------------------------------------------------------------------------

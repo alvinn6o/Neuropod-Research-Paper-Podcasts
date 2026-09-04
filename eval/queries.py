@@ -125,8 +125,22 @@ def _strip_sentence(text: str, sentence: str) -> str:
 
 
 def _pick_sentence(text: str, seed_key: str) -> str | None:
-    """Deterministically choose one sentence to drop from a non-gold chunk."""
-    sents = [s for s in _sentences(text) if len(s.split()) >= MIN_QUERY_WORDS]
+    """Deterministically choose one sentence to drop from a non-gold chunk.
+
+    The eligible length window is the SAME one used to select query sentences
+    (MIN_QUERY_WORDS..MAX_QUERY_WORDS). That matters: with only a lower bound,
+    non-gold chunks could lose very long sentences while gold chunks lost a
+    query sentence capped at 40 words, leaving gold systematically longer. That
+    residual was measurable — ranking by longest-first scored nDCG@10 = 0.168
+    against random's 0.130 — and chunk length is the reranker's most-split
+    feature, so it was being partly consumed as signal.
+    """
+    sents = [
+        s for s in _sentences(text)
+        if MIN_QUERY_WORDS <= len(s.split()) <= MAX_QUERY_WORDS
+    ]
+    if not sents:
+        sents = [s for s in _sentences(text) if len(s.split()) >= MIN_QUERY_WORDS]
     if not sents:
         sents = _sentences(text)
     if not sents:
