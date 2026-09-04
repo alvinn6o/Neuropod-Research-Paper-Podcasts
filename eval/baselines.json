@@ -8,11 +8,17 @@
     "Measured on the 42-paper frozen corpus with 472 ICT queries, hash",
     "embeddings, retrieval scoped to one paper (matching production).",
     "",
+    "REVISED after a leak fix. The first version of these numbers was measured",
+    "with only the gold chunk redacted, which made it identifiable by length",
+    "alone: the chunker caps chunks at 110 words, so 88.9% of untouched chunks",
+    "sat at the cap and 0% of redacted gold chunks did. Ranking by length while",
+    "ignoring the query entirely scored nDCG@10 = 0.369, beating BM25's 0.224.",
+    "queries.redact_pool now removes one sentence from every candidate, which",
+    "drops length-alone to 0.033 (below random, 0.075).",
+    "",
     "tolerance is 0.005, not the CI half-width (~0.028). The point estimate is",
-    "fully deterministic \u2014 same corpus, same queries, no sampling in retrieval \u2014",
-    "so run-to-run variance is zero and the gate only needs to absorb rounding.",
-    "A tolerance set to the CI width would let a real regression through:",
-    "disabling IDF in BM25 costs 0.013, which a 0.02 tolerance does not catch."
+    "deterministic \u2014 same corpus, same queries, no sampling in retrieval \u2014 so",
+    "run-to-run variance is zero and the gate only absorbs rounding."
   ],
   "corpus": {
     "papers": 42,
@@ -23,19 +29,24 @@
   "tolerance": 0.005,
   "configs": {
     "current": {
-      "ndcg@10": 0.2218,
-      "mrr": 0.1673,
-      "hit@1": 0.0487
+      "ndcg@10": 0.2464,
+      "mrr": 0.1848,
+      "hit@1": 0.0508
     },
     "bm25": {
-      "ndcg@10": 0.3132,
-      "mrr": 0.2393,
-      "hit@1": 0.0763
+      "ndcg@10": 0.3391,
+      "mrr": 0.2634,
+      "hit@1": 0.0932
     },
     "dense": {
-      "ndcg@10": 0.2613,
-      "mrr": 0.201,
-      "hit@1": 0.0636
+      "ndcg@10": 0.2983,
+      "mrr": 0.2293,
+      "hit@1": 0.0784
     }
+  },
+  "leak_guard": {
+    "_comment": "Ranking by chunk length alone must not beat random ordering.",
+    "ndcg@10_by_length_alone": 0.0326,
+    "ndcg@10_random": 0.0747
   }
 }

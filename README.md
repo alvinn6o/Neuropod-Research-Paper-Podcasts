@@ -211,37 +211,106 @@ one paper (matching production).
 
 | Config | nDCG@10 | 95% CI | vs. baseline (paired) | |
 |---|---|---|---|---|
-| `current` (shipping) | 0.222 | [0.197, 0.248] | — | baseline |
-| `dense+prior` | 0.234 | [0.208, 0.261] | +0.012 [−0.006, +0.029] p=0.194 | not significant |
-| `dense` | 0.261 | [0.236, 0.290] | +0.040 [+0.017, +0.060] p<0.001 | significant |
-| `rrf+prior` | 0.290 | [0.266, 0.319] | +0.069 [+0.047, +0.089] p<0.001 | significant |
-| `rrf` | 0.298 | [0.273, 0.328] | +0.076 [+0.053, +0.098] p<0.001 | significant |
-| **`bm25`** | **0.313** | [0.285, 0.341] | **+0.091 [+0.064, +0.117] p<0.001** | **significant** |
+| `current` (shipping) | 0.246 | [0.219, 0.272] | — | baseline |
+| `dense+prior` | 0.257 | [0.231, 0.286] | +0.012 [−0.006, +0.030] p=0.216 | not significant |
+| `dense` | 0.298 | [0.272, 0.328] | +0.052 [+0.030, +0.075] p<0.001 | significant |
+| `rrf+prior` | 0.326 | [0.299, 0.357] | +0.080 [+0.057, +0.103] p<0.001 | significant |
+| `rrf` | 0.335 | [0.308, 0.366] | +0.090 [+0.064, +0.113] p<0.001 | significant |
+| **`bm25`** | **0.339** | [0.311, 0.369] | **+0.093 [+0.065, +0.119] p<0.001** | **significant** |
 
-### Three findings, including two negative ones
+### A leak, found and fixed
+
+The first version of this table was wrong, and the way it was wrong is the most
+instructive part of the project.
+
+ICT redacts the query sentence from its gold chunk. The chunker caps chunks at
+110 words — so after redacting *only* the gold chunk, **88.9% of non-gold chunks
+sat exactly at the cap and 0% of gold chunks did**. The gold chunk was
+identifiable without reading the query at all.
+
+Measured directly, ranking by chunk length while ignoring the query entirely:
+
+| Ranker | nDCG@10 |
+|---|---|
+| by chunk length alone (leaked benchmark) | **0.369** |
+| BM25 on the same fold | 0.224 |
+| random ordering | 0.075 |
+
+A query-independent rule beat BM25. A gradient-boosted reranker with a length
+feature reached **nDCG@10 = 0.667** — a headline 3× improvement that was almost
+entirely the artifact.
+
+The tell was the fitted coefficient: `chunk_tokens` came out at **−2.07**,
+several times larger than any relevance feature. A model insisting that shorter
+chunks are more relevant is not describing retrieval.
+
+`queries.redact_pool` now removes one sentence from **every** candidate, not
+just the gold. Length-alone drops to **0.033** — below random. Two tests in
+`tests/test_eval_harness.py` fail if either property regresses. Every number in
+this README is post-fix.
+
+### Findings — two of them negative
 
 **1. The hand-tuned section prior makes retrieval worse.**
 `Retriever.section_bonus` adds a hand-set constant (`abstract: 0.18`,
-`results: 0.16`, …) directly onto a cosine score. Tested directly with a paired
-bootstrap rather than inferred from the table:
+`results: 0.16`, …) directly onto a cosine score. Tested with a paired bootstrap
+rather than inferred from the table above:
 
 | Comparison | Δ nDCG@10 | 95% CI | p | |
 |---|---|---|---|---|
-| `dense` → `dense+prior` | **−0.027** | [−0.043, −0.012] | <0.001 | significantly worse |
-| `rrf` → `rrf+prior` | −0.008 | [−0.016, +0.001] | 0.064 | worse, not significant |
+| `dense` → `dense+prior` | **−0.041** | [−0.058, −0.025] | <0.001 | significantly worse |
+| `rrf` → `rrf+prior` | −0.009 | [−0.019, +0.001] | 0.078 | worse, not significant |
 
-A heuristic that was assumed to help is measurably hurting. This is the concrete
-argument for replacing it with a learned reranker — the weights were never fit
-to anything.
+**2. Proper BM25 beats the shipping sparse path by 38% relative.**
+The shipping "sparse fallback" is raw term-frequency cosine — no IDF, no length
+normalization, no stopwords. Adding those is worth +0.093 nDCG@10.
 
-**2. Proper BM25 beats the current sparse path by 41% relative.**
-The shipping "sparse fallback" is raw term-frequency cosine: no IDF, no length
-normalization, no stopwords. Adding those three things is worth +0.091 nDCG@10.
+**3. RRF fusion does *not* beat BM25 alone here.** Δ = −0.004, CI
+[−0.019, +0.013], p=0.632. Hybrid retrieval is usually the right default and it
+did not win on this query set.
 
-**3. RRF fusion does *not* beat BM25 alone here.** Δ = −0.015, CI
-[−0.031, +0.002], p=0.094 — not significant. Hybrid retrieval is usually the
-right default, and it still lost on this query set. Reported because a table
-with only wins is not an evaluation.
+### A trained reranker
+
+A learned model replacing the hand-set prior, scored on **held-out papers**.
+Splits are grouped by paper, never by query — queries from one paper share a
+chunk pool, so a query-level split lets the model memorize chunks it is then
+scored on. 25 train / 8 dev / 8 test papers; test scored once, after model
+selection on dev.
+
+| Model | test nDCG@10 | 95% CI | vs. BM25 (paired) | |
+|---|---|---|---|---|
+| `dense+prior` (shipping) | 0.183 | [0.138, 0.230] | −0.053 [−0.106, +0.002] p=0.066 | not significant |
+| BM25 | 0.235 | [0.184, 0.292] | — | baseline |
+| Logistic regression | 0.273 | [0.225, 0.331] | +0.037 [+0.014, +0.066] p<0.001 | significant |
+| **Gradient boosting** | **0.298** | [0.234, 0.366] | **+0.063 [+0.026, +0.099] p<0.001** | **significant** |
+
+**What the model learned about sections.** The interpretable model's fitted
+coefficients against the hand-set values they replace:
+
+| Section | hand-set | learned | |
+|---|---|---|---|
+| `limitations` | +0.100 | **−0.183** | sign flipped |
+| `discussion` | +0.100 | **−0.134** | sign flipped |
+| `results` | +0.160 | −0.008 | second-largest prior, learned ≈ 0 |
+| `body` | 0.000 | +0.123 | unlisted, actually useful |
+| `background` | 0.000 | −0.066 | unlisted, actively bad |
+| `abstract` | +0.180 | +0.130 | agrees in direction |
+
+Only `abstract` broadly survives. `results` — the second-highest hand-set weight
+— is learned as roughly zero, and the two sections the prior boosts by +0.10 get
+negative weights. That is the concrete version of "these weights were never fit
+to anything."
+
+**Negative sampling was worth more than the model choice.** Training on the top
+20 BM25 hard negatives scored 0.264 on dev; the full candidate pool scored
+0.443. Subsampling trains on a distribution the model is never served — at
+inference it ranks all ~43 candidates including easy negatives it never saw, and
+scores them confidently. Classic train/serve skew, and it cost more than the gap
+between logistic regression and gradient boosting.
+
+```bash
+python -m eval.train_reranker
+```
 
 ### What these numbers do not show
 
@@ -262,6 +331,14 @@ it runs when `OPENAI_API_KEY` is set and caches by content hash. Those results
 are not in this table because they have not been run.
 
 **Embeddings are the hash fallback,** not OpenAI. See the note below.
+
+**The reranker's test fold is 8 papers / 108 queries.** Its interval
+[0.234, 0.366] is wide, and the dev→test drop (0.443 → 0.298) is larger than
+the margin over BM25. The direction is significant; the magnitude should not be
+quoted precisely.
+
+**The reranker is not wired into the serving path yet.** These are offline
+numbers on a frozen corpus.
 
 ### The regression gate
 

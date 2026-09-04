@@ -1,4 +1,4 @@
-.PHONY: help install dev worker test test-pg typecheck build clean reset eval eval-judge corpus dedupe deps-audit
+.PHONY: help install dev worker test test-pg typecheck build clean reset eval eval-judge corpus reranker dedupe deps-audit
 
 help:
 	@echo "Targets:"
@@ -14,6 +14,7 @@ help:
 	@echo "  eval        retrieval ablation over the frozen corpus (free, deterministic)"
 	@echo "  eval-judge  LLM-as-judge eval (costs API credits, requires OPENAI_API_KEY)"
 	@echo "  corpus      rebuild the frozen eval corpus (fetches PDFs from arXiv)"
+	@echo "  reranker    train + evaluate the learned reranker on held-out papers"
 	@echo "  dedupe      remove duplicate episodes per (user_id, paper_id)"
 
 install:
@@ -65,6 +66,9 @@ eval-judge:
 corpus:
 	python -m eval.corpus_build build
 	python -m eval.queries --mode ict
+
+reranker:
+	python -m eval.train_reranker
 
 dedupe:
 	python scripts/dedupe_episodes.py

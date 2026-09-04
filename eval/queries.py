@@ -120,23 +120,62 @@ def build_ict(per_paper: int = 12, seed: int = 17) -> list[EvalQuery]:
     return out
 
 
-def redact_gold(chunks: list[dict], queries: list[EvalQuery]) -> dict[str, dict]:
-    """Return a chunk index with each ICT query's source sentence removed.
+def _strip_sentence(text: str, sentence: str) -> str:
+    return re.sub(r"\s+", " ", text.replace(sentence, " ")).strip()
 
-    Without this the task is trivial and meaningless: the query string appears
-    verbatim inside its own gold chunk, so any lexical matcher scores ~100% and
-    the benchmark measures nothing. Redaction is per-query, so this returns a
-    map keyed by query_id.
+
+def _pick_sentence(text: str, seed_key: str) -> str | None:
+    """Deterministically choose one sentence to drop from a non-gold chunk."""
+    sents = [s for s in _sentences(text) if len(s.split()) >= MIN_QUERY_WORDS]
+    if not sents:
+        sents = _sentences(text)
+    if not sents:
+        return None
+    i = int(hashlib.sha1(seed_key.encode()).hexdigest()[:8], 16) % len(sents)
+    return sents[i]
+
+
+def redact_gold(chunks: list[dict], queries: list[EvalQuery]) -> dict[str, dict]:
+    """The gold chunk with its query sentence removed, keyed by query_id.
+
+    Without this the task is trivial: the query appears verbatim inside its own
+    gold chunk, so any lexical matcher scores ~100%.
     """
     by_id = {c["id"]: c for c in chunks}
-    redacted: dict[str, dict] = {}
+    out: dict[str, dict] = {}
     for q in queries:
         gold = by_id.get(q.gold_chunk_id)
         if gold is None:
             continue
-        stripped = gold["content"].replace(q.query, " ").strip()
-        redacted[q.query_id] = {**gold, "content": re.sub(r"\s+", " ", stripped)}
-    return redacted
+        out[q.query_id] = {**gold, "content": _strip_sentence(gold["content"], q.query)}
+    return out
+
+
+def redact_pool(paper_chunks: list[dict], query: EvalQuery) -> list[dict]:
+    """Build the candidate pool with one sentence removed from EVERY chunk.
+
+    Redacting only the gold chunk leaks catastrophically. The chunker caps
+    chunks at 110 words, so 88.9% of untouched chunks sit exactly at the cap
+    while a redacted gold chunk never does. Measured: ranking by chunk length
+    alone — ignoring the query entirely — scored nDCG@10 = 0.369 on this corpus,
+    beating BM25's 0.224. Any model with access to a length feature learns
+    "shorter than the cap" and looks excellent while having learned nothing
+    about relevance.
+
+    Removing one sentence from every candidate equalizes the length
+    distribution, so length carries no information about which chunk is gold.
+    The gold chunk still loses specifically the query sentence, preserving ICT
+    semantics. `tests/test_eval_harness.py` asserts the leak stays closed.
+    """
+    out: list[dict] = []
+    for chunk in paper_chunks:
+        if chunk["id"] == query.gold_chunk_id:
+            out.append({**chunk, "content": _strip_sentence(chunk["content"], query.query)})
+            continue
+        victim = _pick_sentence(chunk["content"], f"{query.query_id}:{chunk['id']}")
+        content = _strip_sentence(chunk["content"], victim) if victim else chunk["content"]
+        out.append({**chunk, "content": content})
+    return out
 
 
 def write(queries: list[EvalQuery], path: Path) -> None:

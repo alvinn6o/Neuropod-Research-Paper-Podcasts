@@ -132,8 +132,7 @@ def run(config_names: list[str], *, per_paper_limit: int | None = None) -> dict:
     for c in chunks:
         by_paper[c["paper_id"]].append(c)
 
-    redacted = q_mod.redact_gold(chunks, queries)
-
+    redacted = q_mod.redact_gold(chunks, queries)  # gold only, for the length check
     runs: dict[str, dict[str, list[str]]] = {name: {} for name in config_names}
     qrels: dict[str, dict[str, int]] = {}
     query_meta: dict[str, dict] = {}
@@ -145,16 +144,13 @@ def run(config_names: list[str], *, per_paper_limit: int | None = None) -> dict:
             # redaction nothing is left to retrieve. Excluded rather than
             # counted as a miss — it is not a retrieval failure.
             continue
-        # Swap the redacted gold in so the query text is not present verbatim.
-        paper_chunks = [
-            dict(gold) if c["id"] == query.gold_chunk_id else dict(c)
-            for c in by_paper[query.paper_id]
-        ]
+        # One sentence removed from EVERY chunk, not just gold. Redacting only
+        # the gold chunk makes it identifiable by length alone (see
+        # queries.redact_pool), which is a leak worth more nDCG than BM25.
+        paper_chunks = q_mod.redact_pool(by_paper[query.paper_id], query)
         for c in paper_chunks:
-            c["_emb"] = (
-                embedder.embed_text(c["content"]) if c["id"] == query.gold_chunk_id
-                else emb_cache[c["id"]]
-            )
+            # Every chunk's text changed, so no embedding can come from cache.
+            c["_emb"] = embedder.embed_text(c["content"])
 
         qrels[query.query_id] = {query.gold_chunk_id: 2}
         query_meta[query.query_id] = {"section": query.section, "paper_id": query.paper_id}

@@ -189,3 +189,71 @@ def test_corpus_is_large_enough_to_be_falsifiable():
 
     lo, hi = wilson_interval(int(0.3 * len(queries)), len(queries))
     assert (hi - lo) < 0.12, "interval still too wide to detect a 10-point change"
+
+
+# ---------------------------------------------------------------------------
+# Leak guard
+# ---------------------------------------------------------------------------
+
+@needs_corpus
+def test_chunk_length_carries_no_signal_about_which_chunk_is_gold():
+    """A query-independent ranker must not beat random ordering.
+
+    Regression test for a real leak. ICT redacts the query sentence from its
+    gold chunk; the chunker caps chunks at 110 words, so redacting only the gold
+    left 88.9% of non-gold chunks sitting exactly at the cap and 0% of gold
+    chunks there. Ranking purely by "shorter than the cap" — never looking at
+    the query — scored nDCG@10 = 0.369 against BM25's 0.224, and a GBDT with a
+    length feature reached 0.667 by learning the artifact and nothing else.
+
+    `queries.redact_pool` removes one sentence from every candidate, which
+    equalizes the distribution. This test fails if that guarantee breaks.
+    """
+    import random
+
+    from eval.metrics import ndcg_at_k
+    from eval.train_reranker import load_dataset, qrels_for, rank_with, split_by_paper
+    from pipeline.generate.features import FEATURE_NAMES
+
+    rows = load_dataset()
+    _, _, test, _ = split_by_paper(rows)
+    qrels = qrels_for(test)
+    i_len = FEATURE_NAMES.index("chunk_tokens")
+
+    by_length = rank_with(lambda X: -X[:, i_len], test)
+    length_ndcg = sum(ndcg_at_k(by_length[q], qrels[q], 10) for q in qrels) / len(qrels)
+
+    rng = random.Random(0)
+    random_ndcg = sum(
+        ndcg_at_k(
+            rng.sample([c.chunk_id for c in r["candidates"]], k=min(10, len(r["candidates"]))),
+            qrels[r["query_id"]], 10,
+        )
+        for r in test
+    ) / len(test)
+
+    print(f"\n  nDCG@10 by length alone = {length_ndcg:.4f} vs random {random_ndcg:.4f}")
+    assert length_ndcg < random_ndcg * 1.5, (
+        f"chunk length predicts relevance (nDCG@10={length_ndcg:.4f} vs random "
+        f"{random_ndcg:.4f}). The redaction is leaking again — check redact_pool."
+    )
+
+
+@needs_corpus
+def test_gold_and_non_gold_chunk_lengths_are_comparable():
+    """The mechanism behind the leak, asserted directly."""
+    from eval.train_reranker import load_dataset
+
+    rows = load_dataset()
+    gold, other = [], []
+    for r in rows:
+        for c in r["candidates"]:
+            (gold if c.chunk_id == r["gold"] else other).append(len(c.content.split()))
+
+    at_cap_gold = sum(1 for n in gold if n >= 110) / len(gold)
+    at_cap_other = sum(1 for n in other if n >= 110) / len(other)
+    print(f"\n  at-cap: gold={at_cap_gold:.1%} non-gold={at_cap_other:.1%}")
+    assert abs(at_cap_gold - at_cap_other) < 0.10, (
+        "gold and non-gold chunks differ in how often they hit the 110-word cap; "
+        "that alone identifies the gold chunk"
+    )

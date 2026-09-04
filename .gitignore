@@ -50,3 +50,4 @@ build/
 # chunks, queries) ARE committed — CI must never hit the network.
 eval/corpus/_pdf_cache/
 eval/corpus/_llm_query_cache.json
+eval/corpus/_emb_cache/
