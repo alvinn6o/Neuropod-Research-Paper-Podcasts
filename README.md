@@ -7,11 +7,12 @@ The project is designed as an AI engineering portfolio system, not a permanently
 ## Tech Stack
 
 - **Backend**: Python, FastAPI, APScheduler-ready job model
-- **Pipeline**: arXiv API, PyMuPDF section extraction, section-aware chunking, OpenAI embeddings or deterministic hash fallback, Anthropic/OpenAI/Bedrock-compatible script generation
+- **Pipeline**: arXiv API, PyMuPDF section extraction, section-aware chunking, tiktoken token accounting, OpenAI embeddings or deterministic hash fallback, Anthropic/OpenAI/Bedrock-compatible script generation
 - **Retrieval**: in-process dense/sparse retriever today; Postgres + pgvector HNSW schema included for production retrieval
 - **Audio**: optional ElevenLabs/OpenAI TTS after script generation; demo fallback emits a short WAV tone
 - **Frontend**: Next.js 16 App Router, TypeScript, plain CSS
 - **Storage**: SQLite for zero-cost local runs; Postgres + pgvector schema for production
+- **Telemetry**: per-call `llm_calls` ledger (exact tokens + cost) and `retrieval_traces` (which chunks grounded each script)
 - **Container**: Docker / docker-compose
 
 ## Running It
@@ -97,7 +98,7 @@ Open http://localhost:3000. Postgres is optional locally — the app falls back 
 ### Useful one-liners
 
 ```bash
-# Run the test suite (40 tests, ~1s, no API calls)
+# Run the test suite (~1s, no API calls)
 make test
 
 # Type-check the frontend
@@ -200,18 +201,77 @@ The retriever has a checked-in benchmark fixture for the Mamba paper (`arXiv:231
 pytest tests/test_recall.py -q -s
 ```
 
-Current deterministic fixture results (1536-dim hash embeddings, 63 chunks across 7 sections):
+Results, with the caveats that matter:
 
-- recall@1: 58.3%
-- recall@5: 83.3%
-- recall@10: 83.3%
-- MRR: 0.692
+| Metric | Value | 95% CI (Wilson) |
+|---|---|---|
+| recall@1 | 58.3% (7/12) | 32.0% – 80.7% |
+| recall@5 | 83.3% (10/12) | 55.2% – 95.3% |
+| recall@10 | 83.3% (10/12) | 55.2% – 95.3% |
+| MRR | 0.692 | — |
 
-The full deterministic test suite covers API smoke tests, auth/session behavior, topic/category CRUD, chunking invariants, retriever behavior, QA heuristics, and the script-first/audio-optional episode flow.
+**What these numbers do and do not show.** Two things have to be said plainly:
+
+1. **They measure the `HashEmbedder` path, not the shipping path.** The fixture
+   was built with the deterministic SHA256 bag-of-words fallback
+   (`embedder_backend` in `tests/fixtures/mamba_meta.json`), which is what runs
+   when no `OPENAI_API_KEY` is set. That is a hashing scheme, not a semantic
+   embedding. Real OpenAI embeddings are untested here. Regenerate with
+   `OPENAI_API_KEY=... python -m eval.precompute_fixtures` to measure the path
+   that actually ships.
+2. **n = 12 queries on 1 paper is too small to detect a change.** The interval
+   on recall@1 spans 32%–81%. A retrieval change worth 10 points cannot be
+   distinguished from noise at this sample size, which makes any A/B comparison
+   against this fixture unfalsifiable. The fix is more papers and more queries,
+   not a better retriever.
+
+Both are being addressed by the evaluation work in the roadmap; the numbers are
+published with their intervals in the meantime rather than quoted bare.
+
+The full deterministic test suite covers API smoke tests, auth/session behavior,
+topic/category CRUD, chunking invariants, retriever behavior, embedding-space
+and spend-cap invariants, QA heuristics, and the script-first/audio-optional
+episode flow.
 
 ```bash
 pytest tests/ -q
 ```
+
+## Cost Controls
+
+This is a demo, and generation costs real money, so spend is bounded in four
+independent places rather than one:
+
+| Control | Default | Env var |
+|---|---|---|
+| Episodes per click | 5 | — (`MAX_EPISODES_PER_RUN`) |
+| Per-user runs/day | 20 | `NEUROPOD_DAILY_PIPELINE_LIMIT` |
+| **Global runs/day (all users)** | 60 | `NEUROPOD_GLOBAL_DAILY_RUN_LIMIT` |
+| **Monthly USD ceiling** | $5.00 | `NEUROPOD_MONTHLY_BUDGET_USD` |
+| **Daily USD ceiling** | $1.00 | `NEUROPOD_DAILY_BUDGET_USD` |
+
+The global and USD caps exist because the per-user caps are not a spend bound on
+their own: `POST /auth/stub/login` mints a persistent identity for any email
+with no verification, so a per-user quota is free to reset by making a new
+account. At Sonnet prices one identity running its cap is roughly $5/day.
+
+Spend is measured, not estimated. Every provider call writes a row to
+`llm_calls` with exact token counts from the response's `usage` block and a cost
+derived from the pricing table in `pipeline/usage.py`. Current spend against the
+caps is visible at `GET /status` under `budget`, and a per-model rollup for the
+month is under `spend` when authenticated.
+
+**Exceeding a USD cap degrades, it does not error.** Script generation falls
+back to the zero-cost template and `/ask` falls back to deterministic metadata
+answers, so the site still works — it just stops spending. Affected episodes are
+recorded with `llm_provider = "demo-budget"` so the degradation is visible in
+the data rather than silent. The global run cap is the one control that
+rejects (429), because a run that cannot call a model would just fill a feed
+with template scripts.
+
+These are defence in depth, not the last line. **Set a spend cap at the provider
+too** (Anthropic workspace limits, OpenAI project budgets) — that is the only
+ceiling a bug in this repo cannot bypass.
 
 ## Layout
 

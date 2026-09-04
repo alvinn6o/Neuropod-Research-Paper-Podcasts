@@ -40,3 +40,6 @@ data/
 # Dist / build
 dist/
 build/
+
+.venv/
+.venv-verify/

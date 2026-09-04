@@ -12,6 +12,8 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Any, Optional
 
+from pipeline.generate.embedder import EMBEDDING_DIM
+
 from .db import cursor
 
 logger = logging.getLogger("neuropod.store")
@@ -112,15 +114,48 @@ def upsert_paper(record: dict[str, Any]) -> uuid.UUID:
         return paper_id
 
 
+def _encode_embedding(vector: Any) -> Optional[str]:
+    """Serialize an embedding for the `vector(1536)` column, or NULL.
+
+    Two things this must get right, both of which were previously wrong:
+
+      * An empty embedding must become SQL NULL, not the string "[]". pgvector
+        rejects "[]" with `vector must have at least 1 dimension`, so a single
+        un-embedded chunk failed the whole paper's insert on real Postgres. It
+        went unnoticed because every test runs against the SQLite shim, where
+        the column is plain TEXT.
+      * The dimension must match the column. A wrong-width vector is rejected by
+        pgvector at insert time but silently accepted by SQLite, so we check
+        here rather than relying on the backend to notice.
+
+    No pgvector adapter is needed: psycopg 3 sends str parameters with the
+    *unknown* OID, so Postgres coerces "[0.1,0.2]" into vector on its own.
+    """
+    if not vector:
+        return None
+    if len(vector) != EMBEDDING_DIM:
+        raise ValueError(
+            f"embedding has {len(vector)} dims, index expects {EMBEDDING_DIM}"
+        )
+    return json.dumps(vector)
+
+
 def replace_chunks_for_paper(paper_id: uuid.UUID, chunks: list[dict[str, Any]]) -> None:
+    models = {c.get("embedding_model") for c in chunks if c.get("embedding_model")}
+    if len(models) > 1:
+        raise ValueError(
+            f"refusing to write chunks embedded by more than one model: {sorted(models)}"
+        )
     with cursor() as cur:
         cur.execute("DELETE FROM paper_chunks WHERE paper_id = %s", (str(paper_id),))
         for chunk in chunks:
+            embedding = chunk.get("embedding") or []
             cur.execute(
                 """
                 INSERT INTO paper_chunks
-                  (id, paper_id, section, chunk_index, content, token_count, embedding)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                  (id, paper_id, section, chunk_index, content, token_count,
+                   token_source, embedding, embedding_model, embedding_dim)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     chunk.get("id") or str(uuid.uuid4()),
@@ -129,7 +164,10 @@ def replace_chunks_for_paper(paper_id: uuid.UUID, chunks: list[dict[str, Any]]) 
                     int(chunk.get("chunk_index", 0)),
                     chunk["content"],
                     int(chunk.get("token_count", 0)),
-                    json.dumps(chunk.get("embedding") or []),
+                    chunk.get("token_source") or "unknown",
+                    _encode_embedding(embedding),
+                    chunk.get("embedding_model") or None,
+                    int(chunk.get("embedding_dim") or 0) or None,
                 ),
             )
 
@@ -138,7 +176,8 @@ def get_chunks_for_paper(paper_id: uuid.UUID) -> list[dict[str, Any]]:
     with cursor() as cur:
         cur.execute(
             """
-            SELECT id, paper_id, section, chunk_index, content, token_count, embedding
+            SELECT id, paper_id, section, chunk_index, content, token_count,
+                   token_source, embedding, embedding_model, embedding_dim
             FROM paper_chunks WHERE paper_id = %s
             ORDER BY chunk_index
             """,
@@ -154,7 +193,11 @@ def get_chunks_for_paper(paper_id: uuid.UUID) -> list[dict[str, Any]]:
             "chunk_index": row[3],
             "content": row[4],
             "token_count": row[5],
-            "embedding": _decode_embedding(row[6]),
+            "token_source": row[6],
+            "embedding": _decode_embedding(row[7]),
+            # Carried through so the retriever can refuse to mix spaces.
+            "embedding_model": row[8],
+            "embedding_dim": row[9],
         })
     return out
 
@@ -599,3 +642,203 @@ def _as_uuid(value: Any) -> uuid.UUID:
     if isinstance(value, uuid.UUID):
         return value
     return uuid.UUID(str(value))
+
+
+# ---------- Telemetry: LLM call ledger ----------
+
+def insert_llm_calls(calls: list[Any], *, user_id: Optional[uuid.UUID] = None) -> int:
+    """Persist a batch of LLMCall records. Never raises into the caller.
+
+    Telemetry must not be able to fail a pipeline run that already succeeded, so
+    a broken insert is logged and swallowed. The trade-off is accepted
+    deliberately: an under-counted ledger makes the budget guard permissive, so
+    the provider-side spend caps remain the real backstop.
+    """
+    if not calls:
+        return 0
+    written = 0
+    try:
+        with cursor() as cur:
+            for call in calls:
+                cur.execute(
+                    """
+                    INSERT INTO llm_calls
+                      (id, user_id, purpose, provider, model, prompt_tokens,
+                       completion_tokens, cached_read_tokens, cached_write_tokens,
+                       cost_usd, latency_ms, ok, status, error)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        str(uuid.uuid4()),
+                        str(user_id) if user_id else None,
+                        call.purpose,
+                        call.provider,
+                        call.model,
+                        int(call.prompt_tokens),
+                        int(call.completion_tokens),
+                        int(call.cached_read_tokens),
+                        int(call.cached_write_tokens),
+                        call.cost_usd,
+                        int(call.latency_ms),
+                        bool(call.ok),
+                        call.status,
+                        (call.error or None),
+                    ),
+                )
+                written += 1
+    except Exception as exc:
+        logger.warning("failed to persist llm_calls: %s", exc)
+    return written
+
+
+def _ts_param(moment: datetime) -> str:
+    """Format a UTC datetime so it compares correctly on BOTH backends.
+
+    The SQLite shim stores `created_at` as TEXT from CURRENT_TIMESTAMP, i.e.
+    "2026-09-04 21:22:00", and compares it lexically. An ISO-8601 string
+    ("2026-09-04T21:22:00+00:00") sorts *after* that on the "T" vs " " byte, so
+    `created_at >= since` was false for every row and the ledger always read
+    $0.00 — a spend guard that never trips. Postgres parses this same format as
+    a timestamp literal; both containers run UTC.
+    """
+    return moment.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def spend_usd_since(since: datetime) -> float:
+    """Total known LLM spend since `since`. Unpriced calls count as 0."""
+    try:
+        with cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0) FROM llm_calls WHERE created_at >= %s",
+                (_ts_param(since),),
+            )
+            row = cur.fetchone()
+            return float(row[0] or 0.0)
+    except Exception as exc:
+        logger.warning("spend query failed: %s", exc)
+        # Fail closed would block a demo on a transient DB hiccup; fail open
+        # would uncap spend. We fail open here and rely on the provider-side
+        # cap, but log loudly so it is visible.
+        return 0.0
+
+
+def spend_summary() -> dict[str, Any]:
+    """Cost/usage rollup for /status. Cheap enough to compute per request."""
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    out: dict[str, Any] = {
+        "month_usd": round(spend_usd_since(month_start), 4),
+        "day_usd": round(spend_usd_since(day_start), 4),
+    }
+    try:
+        with cursor() as cur:
+            cur.execute(
+                """
+                SELECT purpose, provider, model, COUNT(*), SUM(prompt_tokens),
+                       SUM(completion_tokens), SUM(cost_usd),
+                       SUM(CASE WHEN ok THEN 0 ELSE 1 END)
+                FROM llm_calls WHERE created_at >= %s
+                GROUP BY purpose, provider, model
+                ORDER BY COUNT(*) DESC
+                """,
+                (_ts_param(month_start),),
+            )
+            out["by_model"] = [
+                {
+                    "purpose": r[0], "provider": r[1], "model": r[2],
+                    "calls": int(r[3] or 0),
+                    "prompt_tokens": int(r[4] or 0),
+                    "completion_tokens": int(r[5] or 0),
+                    "cost_usd": round(float(r[6] or 0.0), 6),
+                    "failures": int(r[7] or 0),
+                }
+                for r in cur.fetchall()
+            ]
+    except Exception as exc:
+        logger.warning("spend summary failed: %s", exc)
+        out["by_model"] = []
+    return out
+
+
+def global_runs_today() -> int:
+    """Pipeline runs across ALL users today.
+
+    Per-user caps are not a spend bound while identities are free to mint, so
+    the global counter is the one that actually limits blast radius.
+    """
+    try:
+        with cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(SUM(count), 0) FROM rate_limits WHERE bucket = %s AND day = %s",
+                ("pipeline_run", date.today().isoformat()),
+            )
+            row = cur.fetchone()
+            return int(row[0] or 0)
+    except Exception as exc:
+        logger.warning("global run count failed: %s", exc)
+        return 0
+
+
+# ---------- Telemetry: retrieval traces ----------
+
+def insert_retrieval_traces(episode_id: uuid.UUID, traces: list[dict[str, Any]]) -> int:
+    """Record which chunks were retrieved for an episode, with score components.
+
+    This is the row the orchestrator previously computed and discarded. It is
+    what makes retrieval auditable ("which chunk grounded this claim?"),
+    replayable offline, and usable as reranker training data later.
+    """
+    if not traces:
+        return 0
+    written = 0
+    try:
+        with cursor() as cur:
+            for trace in traces:
+                cur.execute(
+                    """
+                    INSERT INTO retrieval_traces
+                      (id, episode_id, chunk_id, query_text, retriever_version,
+                       rank_position, dense_score, sparse_score, section_bonus,
+                       final_score, used_in_prompt)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        str(uuid.uuid4()),
+                        str(episode_id),
+                        str(trace["chunk_id"]),
+                        trace.get("query_text", ""),
+                        trace.get("retriever_version", "unknown"),
+                        int(trace.get("rank", 0)),
+                        trace.get("dense_score"),
+                        trace.get("sparse_score"),
+                        trace.get("section_bonus"),
+                        float(trace.get("final_score") or 0.0),
+                        bool(trace.get("used_in_prompt", False)),
+                    ),
+                )
+                written += 1
+    except Exception as exc:
+        logger.warning("failed to persist retrieval_traces: %s", exc)
+    return written
+
+
+def get_retrieval_traces(episode_id: uuid.UUID) -> list[dict[str, Any]]:
+    with cursor() as cur:
+        cur.execute(
+            """
+            SELECT chunk_id, query_text, retriever_version, rank_position,
+                   dense_score, sparse_score, section_bonus, final_score, used_in_prompt
+            FROM retrieval_traces WHERE episode_id = %s ORDER BY rank_position
+            """,
+            (str(episode_id),),
+        )
+        rows = cur.fetchall()
+    return [
+        {
+            "chunk_id": str(r[0]), "query_text": r[1], "retriever_version": r[2],
+            "rank": r[3], "dense_score": r[4], "sparse_score": r[5],
+            "section_bonus": r[6], "final_score": r[7], "used_in_prompt": bool(r[8]),
+        }
+        for r in rows
+    ]

@@ -1,13 +1,54 @@
-fastapi
-uvicorn[standard]
-apscheduler
-python-dotenv
-pymupdf
-cryptography
-psycopg[binary,pool]
-PyJWT[crypto]
-boto3
+# Exact pins, including transitive dependencies.
+#
+# Regenerate with:  make deps-lock
+# Audit ages with:  make deps-audit
+#
+# Every version here is at least 7 days old at the time of pinning. Floating
+# ranges are deliberately absent: the 2026 PyPI compromises (LiteLLM, Telnyx,
+# PyTorch Lightning) all shipped through legitimate publishing pipelines, so a
+# valid signature is not evidence of safety and "latest" is not a safe default.
+# Transitive deps are pinned too — botocore, regex and anyio each resolved to a
+# same-day release when left unpinned.
 
-# Optional — production polish
-# mangum            # Lambda adapter
-# pydub             # audio post-processing (also needs ffmpeg installed)
+# --- direct ---
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+python-dotenv==1.2.3
+pymupdf==1.28.2
+cryptography==50.0.1
+psycopg[binary,pool]==3.3.4
+PyJWT[crypto]==2.13.0
+boto3==1.43.82
+tiktoken==0.14.0          # exact token counts for chunk sizing + cost accounting
+
+# --- transitive (pinned explicitly; see note above) ---
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.11.0
+botocore==1.43.82
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+click==8.5.0
+h11==0.16.0
+httptools==0.8.0
+idna==3.19
+jmespath==1.1.0
+psycopg-binary==3.3.4
+psycopg-pool==3.3.1
+pycparser==3.0
+pydantic==2.13.5
+pydantic-core==2.46.5
+python-dateutil==2.9.0.post0
+PyYAML==6.0.3
+regex==2026.7.19
+requests==2.34.2
+s3transfer==0.19.2
+six==1.17.0
+starlette==1.6.0
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+urllib3==2.7.0
+uvloop==0.22.1
+watchfiles==1.2.0
+websockets==17.1
