@@ -195,46 +195,130 @@ Follow-up Q&A uses the same indexed paper chunks and returns citation excerpts u
 
 ## Evaluation
 
-The retriever has a checked-in benchmark fixture for the Mamba paper (`arXiv:2312.00752`):
+Retrieval is measured on a **frozen 42-paper corpus** with **472 queries**, and
+every number carries a confidence interval. Changes are compared with a *paired*
+bootstrap on the same queries, not by eyeballing whether two intervals overlap.
 
 ```bash
-pytest tests/test_recall.py -q -s
+python -m eval.harness           # the ablation table below
+pytest tests/test_eval_harness.py -q   # the regression gate, ~3s
 ```
 
-Results, with the caveats that matter:
+### Ablation
+
+nDCG@10, 472 ICT queries over 42 papers, hash embeddings, retrieval scoped to
+one paper (matching production).
+
+| Config | nDCG@10 | 95% CI | vs. baseline (paired) | |
+|---|---|---|---|---|
+| `current` (shipping) | 0.222 | [0.197, 0.248] | — | baseline |
+| `dense+prior` | 0.234 | [0.208, 0.261] | +0.012 [−0.006, +0.029] p=0.194 | not significant |
+| `dense` | 0.261 | [0.236, 0.290] | +0.040 [+0.017, +0.060] p<0.001 | significant |
+| `rrf+prior` | 0.290 | [0.266, 0.319] | +0.069 [+0.047, +0.089] p<0.001 | significant |
+| `rrf` | 0.298 | [0.273, 0.328] | +0.076 [+0.053, +0.098] p<0.001 | significant |
+| **`bm25`** | **0.313** | [0.285, 0.341] | **+0.091 [+0.064, +0.117] p<0.001** | **significant** |
+
+### Three findings, including two negative ones
+
+**1. The hand-tuned section prior makes retrieval worse.**
+`Retriever.section_bonus` adds a hand-set constant (`abstract: 0.18`,
+`results: 0.16`, …) directly onto a cosine score. Tested directly with a paired
+bootstrap rather than inferred from the table:
+
+| Comparison | Δ nDCG@10 | 95% CI | p | |
+|---|---|---|---|---|
+| `dense` → `dense+prior` | **−0.027** | [−0.043, −0.012] | <0.001 | significantly worse |
+| `rrf` → `rrf+prior` | −0.008 | [−0.016, +0.001] | 0.064 | worse, not significant |
+
+A heuristic that was assumed to help is measurably hurting. This is the concrete
+argument for replacing it with a learned reranker — the weights were never fit
+to anything.
+
+**2. Proper BM25 beats the current sparse path by 41% relative.**
+The shipping "sparse fallback" is raw term-frequency cosine: no IDF, no length
+normalization, no stopwords. Adding those three things is worth +0.091 nDCG@10.
+
+**3. RRF fusion does *not* beat BM25 alone here.** Δ = −0.015, CI
+[−0.031, +0.002], p=0.094 — not significant. Hybrid retrieval is usually the
+right default, and it still lost on this query set. Reported because a table
+with only wins is not an evaluation.
+
+### What these numbers do not show
+
+**The queries are ICT, not natural questions.** Each query is a sentence
+extracted from a chunk, with that sentence redacted from the chunk before
+retrieval (Lee et al. 2019). That makes the label set free, deterministic and
+large — the properties a CI gate needs — but the queries share vocabulary with
+their gold chunk far more than a real question would, which **systematically
+favours lexical matching**. BM25's win is therefore an upper bound on its real
+advantage, and finding 3 should be read as "RRF did not win *on ICT*", not "RRF
+does not help".
+
+Finding 1 is not exposed to that bias: the prior is applied on top of both
+lexical and dense scoring, and hurts both.
+
+`eval/queries.py` also implements doc2query-style natural-question generation;
+it runs when `OPENAI_API_KEY` is set and caches by content hash. Those results
+are not in this table because they have not been run.
+
+**Embeddings are the hash fallback,** not OpenAI. See the note below.
+
+### The regression gate
+
+`eval/baselines.json` pins the measured values; `tests/test_eval_harness.py`
+fails the build if nDCG@10 drops more than 0.005 below them. The tolerance is
+0.005 rather than the CI half-width (~0.028) because the point estimate is
+fully deterministic — verified, not assumed — so run-to-run variance is zero
+and the gate only needs to absorb rounding.
+
+The gate was checked by breaking retrieval on purpose: disabling IDF in BM25
+costs 0.013 nDCG@10, which a 0.02 tolerance let through and 0.005 catches.
+
+### Legacy single-paper fixture
+
+The original Mamba fixture (`arXiv:2312.00752`) is kept for continuity:
 
 | Metric | Value | 95% CI (Wilson) |
 |---|---|---|
-| recall@1 | 58.3% (7/12) | 32.0% – 80.7% |
-| recall@5 | 83.3% (10/12) | 55.2% – 95.3% |
-| recall@10 | 83.3% (10/12) | 55.2% – 95.3% |
+| hit@1 | 58.3% (7/12) | 32.0% – 80.7% |
+| hit@5 | 83.3% (10/12) | 55.2% – 95.3% |
 | MRR | 0.692 | — |
 
-**What these numbers do and do not show.** Two things have to be said plainly:
+Two caveats, both of which motivated the corpus above:
 
-1. **They measure the `HashEmbedder` path, not the shipping path.** The fixture
+1. **It measures the `HashEmbedder` path, not the shipping path.** The fixture
    was built with the deterministic SHA256 bag-of-words fallback
-   (`embedder_backend` in `tests/fixtures/mamba_meta.json`), which is what runs
-   when no `OPENAI_API_KEY` is set. That is a hashing scheme, not a semantic
-   embedding. Real OpenAI embeddings are untested here. Regenerate with
+   (`embedder_backend` in `tests/fixtures/mamba_meta.json`). Regenerate with
    `OPENAI_API_KEY=... python -m eval.precompute_fixtures` to measure the path
-   that actually ships.
-2. **n = 12 queries on 1 paper is too small to detect a change.** The interval
-   on recall@1 spans 32%–81%. A retrieval change worth 10 points cannot be
-   distinguished from noise at this sample size, which makes any A/B comparison
-   against this fixture unfalsifiable. The fix is more papers and more queries,
-   not a better retriever.
+   that ships. The 42-paper corpus has the same limitation today.
+2. **n = 12 on 1 paper cannot detect a change.** The interval on hit@1 spans
+   32%–81%; a 10-point improvement is indistinguishable from noise. At n=472 the
+   interval is ~5 points wide, which is what makes a gate possible.
 
-Both are being addressed by the evaluation work in the roadmap; the numbers are
-published with their intervals in the meantime rather than quoted bare.
+Note the metric name: `test_recall.py` calls it "recall" but computes hit@k
+(*any* gold chunk in the top k). Both are implemented separately in
+`eval/metrics.py`.
 
-The full deterministic test suite covers API smoke tests, auth/session behavior,
-topic/category CRUD, chunking invariants, retriever behavior, embedding-space
-and spend-cap invariants, QA heuristics, and the script-first/audio-optional
-episode flow.
+### Corpus
+
+42 papers, stratified across cs.LG / cs.CL / cs.CV / stat.ML and 2022–2025,
+pinned by arXiv id *and version* in `eval/corpus/papers.txt`, with each PDF's
+sha256 in `manifest.json`. PDFs are not committed (200MB) — they are re-fetchable
+and hash-verified. Derived artifacts are committed so CI never hits the network.
+
+Extraction quality is recorded per paper, and it is not perfect — deliberately:
+
+- **4.8%** (2/42) fail extraction entirely and fall back to abstract-only
+- **9.5%** (4/42) hit the `body` fallback, where no section header was recognised
+- **78 sections** hit the 8000-char truncation cap in `pdf_extractor.py`
+
+Those failure modes are *in* the corpus rather than filtered out of it, so the
+benchmark measures the pipeline that exists.
 
 ```bash
-pytest tests/ -q
+python -m eval.corpus_build select   # re-pin the corpus (deliberate, rare)
+python -m eval.corpus_build build    # fetch + extract + chunk
+python -m eval.queries --mode ict    # regenerate queries
 ```
 
 ## Cost Controls

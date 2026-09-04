@@ -1,0 +1,1466 @@
+{
+  "papers": [
+    {
+      "pin": "2301.01286v3",
+      "arxiv_id": "2301.01286",
+      "title": "Pseudo-Inverted Bottleneck Convolution for DARTS Search Space",
+      "abstract": "Differentiable Architecture Search (DARTS) has attracted considerable attention as a gradient-based neural architecture search method. Since the introduction of DARTS, there has been little work done on adapting the action space based on state-of-art architecture design principles for CNNs. In this work, we aim to address this gap by incrementally augmenting the DARTS search space with micro-design changes inspired by ConvNeXt and studying the trade-off between accuracy, evaluation layer count, and computational cost. We introduce the Pseudo-Inverted Bottleneck Conv (PIBConv) block intending to reduce the computational footprint of the inverted bottleneck block proposed in ConvNeXt. Our proposed architecture is much less sensitive to evaluation layer count and outperforms a DARTS network with similar size significantly, at layer counts as small as 2. Furthermore, with less layers, not only does it achieve higher accuracy with lower computational footprint (measured in GMACs) and parameter count, GradCAM comparisons show that our network can better detect distinctive features of target objects compared to DARTS. Code is available from https://github.com/mahdihosseini/PIBConv.",
+      "authors": [
+        "Arash Ahmadian",
+        "Louis S. P. Liu",
+        "Yue Fei",
+        "Konstantinos N. Plataniotis",
+        "Mahdi S. Hosseini"
+      ],
+      "categories": [
+        "cs.LG",
+        "eess.IV"
+      ],
+      "primary_category": "cs.LG",
+      "published_at": "2022-12-31T22:56:04Z",
+      "pdf_sha256": "b84bfdc7063ad8537da5b3f3390aef26313bf37ecac36fcfd9e0d114ecb6336a",
+      "pdf_bytes": 798024,
+      "parse_quality": {
+        "section_count": 5,
+        "chars_per_section": {
+          "abstract": 1192,
+          "introduction": 3739,
+          "methods": 5037,
+          "experiments": 3337,
+          "conclusion": 3090
+        },
+        "total_chars": 16395,
+        "chunk_count": 31,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2301.00301v1",
+      "arxiv_id": "2301.00301",
+      "title": "Generalized PTR: User-Friendly Recipes for Data-Adaptive Algorithms with Differential Privacy",
+      "abstract": "The ''Propose-Test-Release'' (PTR) framework is a classic recipe for designing differentially private (DP) algorithms that are data-adaptive, i.e. those that add less noise when the input dataset is nice. We extend PTR to a more general setting by privately testing data-dependent privacy losses rather than local sensitivity, hence making it applicable beyond the standard noise-adding mechanisms, e.g. to queries with unbounded or undefined sensitivity. We demonstrate the versatility of generalized PTR using private linear regression as a case study. Additionally, we apply our algorithm to solve an open problem from ''Private Aggregation of Teacher Ensembles (PATE)'' -- privately releasing the entire model with a delicate data-dependent analysis.",
+      "authors": [
+        "Rachel Redberg",
+        "Yuqing Zhu",
+        "Yu-Xiang Wang"
+      ],
+      "categories": [
+        "cs.LG"
+      ],
+      "primary_category": "cs.LG",
+      "published_at": "2022-12-31T22:22:53Z",
+      "pdf_sha256": "0ab2d2b0ead8aff5b09d3fa53cea5e3981ed700aa14d3f7594875e99d033e402",
+      "pdf_bytes": 957346,
+      "parse_quality": {
+        "section_count": 4,
+        "chars_per_section": {
+          "abstract": 803,
+          "introduction": 3742,
+          "background": 8000,
+          "conclusion": 8000
+        },
+        "total_chars": 20545,
+        "chunk_count": 43,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2301.01148v1",
+      "arxiv_id": "2301.01148",
+      "title": "MERLIN: Multi-agent offline and transfer learning for occupant-centric energy flexible operation of grid-interactive communities using smart meter data and CityLearn",
+      "abstract": "The decarbonization of buildings presents new challenges for the reliability of the electrical grid as a result of the intermittency of renewable energy sources and increase in grid load brought about by end-use electrification. To restore reliability, grid-interactive efficient buildings can provide flexibility services to the grid through demand response. Residential demand response programs are hindered by the need for manual intervention by customers. To maximize the energy flexibility potential of residential buildings, an advanced control architecture is needed. Reinforcement learning is well-suited for the control of flexible resources as it is able to adapt to unique building characteristics compared to expert systems. Yet, factors hindering the adoption of RL in real-world applications include its large data requirements for training, control security and generalizability. Here we address these challenges by proposing the MERLIN framework and using a digital twin of a real-world 17-building grid-interactive residential community in CityLearn. We show that 1) independent RL-controllers for batteries improve building and district level KPIs compared to a reference RBC by tailoring their policies to individual buildings, 2) despite unique occupant behaviours, transferring the RL policy of any one of the buildings to other buildings provides comparable performance while reducing the cost of training, 3) training RL-controllers on limited temporal data that does not capture full seasonality in occupant behaviour has little effect on performance. Although, the zero-net-energy (ZNE) condition of the buildings could be maintained or worsened as a result of controlled batteries, KPIs that are typically improved by ZNE condition (electricity price and carbon emissions) are further improved when the batteries are managed by an advanced controller.",
+      "authors": [
+        "Kingsley Nweye",
+        "Siva Sankaranarayanan",
+        "Zoltan Nagy"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "eess.SY"
+      ],
+      "primary_category": "cs.LG",
+      "published_at": "2022-12-31T21:37:14Z",
+      "pdf_sha256": "4731a86f4f9b3fc3c388c49d55d5b452ca25c7ca214fe0bef065b5bb632e96cd",
+      "pdf_bytes": 7637772,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "introduction": 8000,
+          "experiments": 8000,
+          "results": 8000,
+          "discussion": 8000,
+          "conclusion": 1834,
+          "abstract": 1877
+        },
+        "total_chars": 35711,
+        "chunk_count": 65,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2401.00611v1",
+      "arxiv_id": "2401.00611",
+      "title": "A Compact Representation for Bayesian Neural Networks By Removing Permutation Symmetry",
+      "abstract": "Bayesian neural networks (BNNs) are a principled approach to modeling predictive uncertainties in deep learning, which are important in safety-critical applications. Since exact Bayesian inference over the weights in a BNN is intractable, various approximate inference methods exist, among which sampling methods such as Hamiltonian Monte Carlo (HMC) are often considered the gold standard. While HMC provides high-quality samples, it lacks interpretable summary statistics because its sample mean and variance is meaningless in neural networks due to permutation symmetry. In this paper, we first show that the role of permutations can be meaningfully quantified by a number of transpositions metric. We then show that the recently proposed rebasin method allows us to summarize HMC samples into a compact representation that provides a meaningful explicit uncertainty estimate for each weight in a neural network, thus unifying sampling methods with variational inference. We show that this compact representation allows us to compare trained BNNs directly in weight space across sampling methods and variational inference, and to efficiently prune neural networks trained without explicit Bayesian frameworks by exploiting uncertainty estimates from HMC.",
+      "authors": [
+        "Tim Z. Xiao",
+        "Weiyang Liu",
+        "Robert Bamler"
+      ],
+      "categories": [
+        "stat.ML",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "primary_category": "stat.ML",
+      "published_at": "2023-12-31T23:57:05Z",
+      "pdf_sha256": "5a02a4fdc38e767ca5b6d35bd15f445c558375f45104611b2a17c563868b0ed8",
+      "pdf_bytes": 1681543,
+      "parse_quality": {
+        "section_count": 2,
+        "chars_per_section": {
+          "abstract": 8000,
+          "conclusion": 1424
+        },
+        "total_chars": 9424,
+        "chunk_count": 18,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2401.00910v2",
+      "arxiv_id": "2401.00910",
+      "title": "WoodScape Motion Segmentation for Autonomous Driving -- CVPR 2023 OmniCV Workshop Challenge",
+      "abstract": "Motion segmentation is a complex yet indispensable task in autonomous driving. The challenges introduced by the ego-motion of the cameras, radial distortion in fisheye lenses, and the need for temporal consistency make the task more complicated, rendering traditional and standard Convolutional Neural Network (CNN) approaches less effective. The consequent laborious data labeling, representation of diverse and uncommon scenarios, and extensive data capture requirements underscore the imperative of synthetic data for improving machine learning model performance. To this end, we employ the PD-WoodScape synthetic dataset developed by Parallel Domain, alongside the WoodScape fisheye dataset. Thus, we present the WoodScape fisheye motion segmentation challenge for autonomous driving, held as part of the CVPR 2023 Workshop on Omnidirectional Computer Vision (OmniCV). As one of the first competitions focused on fisheye motion segmentation, we aim to explore and evaluate the potential and impact of utilizing synthetic data in this domain. In this paper, we provide a detailed analysis on the competition which attracted the participation of 112 global teams and a total of 234 submissions. This study delineates the complexities inherent in the task of motion segmentation, emphasizes the significance of fisheye datasets, articulate the necessity for synthetic datasets and the resultant domain gap they engender, outlining the foundational blueprint for devising successful solutions. Subsequently, we delve into the details of the baseline experiments and winning methods evaluating their qualitative and quantitative results, providing with useful insights.",
+      "authors": [
+        "Saravanabalagi Ramachandran",
+        "Nathaniel Cibik",
+        "Ganesh Sistu",
+        "John McDonald"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.LG"
+      ],
+      "primary_category": "cs.CV",
+      "published_at": "2023-12-31T23:53:50Z",
+      "pdf_sha256": "0dfd698d655b0ac4d830fada4c412bd487377853b79a5e424d6080cb25f25f8e",
+      "pdf_bytes": 3186406,
+      "parse_quality": {
+        "section_count": 1,
+        "chars_per_section": {
+          "abstract": 1668
+        },
+        "total_chars": 1668,
+        "chunk_count": 3,
+        "body_fallback": false,
+        "abstract_only": true
+      }
+    },
+    {
+      "pin": "2401.00909v2",
+      "arxiv_id": "2401.00909",
+      "title": "Taming Mode Collapse in Score Distillation for Text-to-3D Generation",
+      "abstract": "Despite the remarkable performance of score distillation in text-to-3D generation, such techniques notoriously suffer from view inconsistency issues, also known as \"Janus\" artifact, where the generated objects fake each view with multiple front faces. Although empirically effective methods have approached this problem via score debiasing or prompt engineering, a more rigorous perspective to explain and tackle this problem remains elusive. In this paper, we reveal that the existing score distillation-based text-to-3D generation frameworks degenerate to maximal likelihood seeking on each view independently and thus suffer from the mode collapse problem, manifesting as the Janus artifact in practice. To tame mode collapse, we improve score distillation by re-establishing the entropy term in the corresponding variational objective, which is applied to the distribution of rendered images. Maximizing the entropy encourages diversity among different views in generated 3D assets, thereby mitigating the Janus problem. Based on this new objective, we derive a new update rule for 3D score distillation, dubbed Entropic Score Distillation (ESD). We theoretically reveal that ESD can be simplified and implemented by just adopting the classifier-free guidance trick upon variational score distillation. Although embarrassingly straightforward, our extensive experiments successfully demonstrate that ESD can be an effective treatment for Janus artifacts in score distillation.",
+      "authors": [
+        "Peihao Wang",
+        "Dejia Xu",
+        "Zhiwen Fan",
+        "Dilin Wang",
+        "Sreyas Mohan",
+        "Forrest Iandola",
+        "Rakesh Ranjan",
+        "Yilei Li",
+        "Qiang Liu",
+        "Zhangyang Wang",
+        "Vikas Chandra"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.LG"
+      ],
+      "primary_category": "cs.CV",
+      "published_at": "2023-12-31T22:47:06Z",
+      "pdf_sha256": "71c350bebe8a6db6a341eb0e402f167afc2572e24479aeef56e53f5c0dc870fe",
+      "pdf_bytes": 3844797,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "abstract": 1467,
+          "introduction": 5124,
+          "background": 8000,
+          "discussion": 7840,
+          "experiments": 3846,
+          "conclusion": 1044
+        },
+        "total_chars": 27321,
+        "chunk_count": 51,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2501.00677v2",
+      "arxiv_id": "2501.00677",
+      "title": "Deeply Learned Robust Matrix Completion for Large-scale Low-rank Data Recovery",
+      "abstract": "Robust matrix completion (RMC) is a widely used machine learning tool that simultaneously tackles two critical issues in low-rank data analysis: missing data entries and extreme outliers. This paper proposes a novel scalable and learnable non-convex approach, coined Learned Robust Matrix Completion (LRMC), for large-scale RMC problems. LRMC enjoys low computational complexity with linear convergence. Motivated by the proposed theorem, the free parameters of LRMC can be effectively learned via deep unfolding to achieve optimum performance. Furthermore, this paper proposes a flexible feedforward-recurrent-mixed neural network framework that extends deep unfolding from fix-number iterations to infinite iterations. The superior empirical performance of LRMC is verified with extensive experiments against state-of-the-art on synthetic datasets and real applications, including video background subtraction, ultrasound imaging, face modeling, and cloud removal from satellite imagery.",
+      "authors": [
+        "HanQin Cai",
+        "Chandra Kundu",
+        "Jialin Liu",
+        "Wotao Yin"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.CV",
+        "cs.IT",
+        "math.NA",
+        "stat.ML"
+      ],
+      "primary_category": "cs.LG",
+      "published_at": "2024-12-31T23:22:12Z",
+      "pdf_sha256": "31d1c4bc581cd6584d7ab77d994c5e7f4a733900caaa1aab50fa709a32041e54",
+      "pdf_bytes": 10959064,
+      "parse_quality": {
+        "section_count": 2,
+        "chars_per_section": {
+          "abstract": 989,
+          "body": 8000
+        },
+        "total_chars": 8989,
+        "chunk_count": 18,
+        "body_fallback": true,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2501.00673v1",
+      "arxiv_id": "2501.00673",
+      "title": "Controlled Causal Hallucinations Can Estimate Phantom Nodes in Multiexpert Mixtures of Fuzzy Cognitive Maps",
+      "abstract": "An adaptive multiexpert mixture of feedback causal models can approximate missing or phantom nodes in large-scale causal models. The result gives a scalable form of \\emph{big knowledge}. The mixed model approximates a sampled dynamical system by approximating its main limit-cycle equilibria. Each expert first draws a fuzzy cognitive map (FCM) with at least one missing causal node or variable. FCMs are directed signed partial-causality cyclic graphs. They mix naturally through convex combination to produce a new causal feedback FCM. Supervised learning helps each expert FCM estimate its phantom node by comparing the FCM's partial equilibrium with the complete multi-node equilibrium. Such phantom-node estimation allows partial control over these causal hallucinations and helps approximate the future trajectory of the dynamical system. But the approximation can be computationally heavy. Mixing the tuned expert FCMs gives a practical way to find several phantom nodes and thereby better approximate the feedback system's true equilibrium behavior.",
+      "authors": [
+        "Akash Kumar Panda",
+        "Bart Kosko"
+      ],
+      "categories": [
+        "cs.LG"
+      ],
+      "primary_category": "cs.LG",
+      "published_at": "2024-12-31T23:01:32Z",
+      "pdf_sha256": "e46396b1cbf440f763d31f616949ccef00237c473d16dfc98f3d436be150fef8",
+      "pdf_bytes": 1724883,
+      "parse_quality": {
+        "section_count": 2,
+        "chars_per_section": {
+          "conclusion": 1262,
+          "abstract": 1057
+        },
+        "total_chars": 2319,
+        "chunk_count": 5,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2501.00669v1",
+      "arxiv_id": "2501.00669",
+      "title": "Leaf diseases detection using deep learning methods",
+      "abstract": "This study, our main topic is to devlop a new deep-learning approachs for plant leaf disease identification and detection using leaf image datasets. We also discussed the challenges facing current methods of leaf disease detection and how deep learning may be used to overcome these challenges and enhance the accuracy of disease detection. Therefore, we have proposed a novel method for the detection of various leaf diseases in crops, along with the identification and description of an efficient network architecture that encompasses hyperparameters and optimization methods. The effectiveness of different architectures was compared and evaluated to see the best architecture configuration and to create an effective model that can quickly detect leaf disease. In addition to the work done on pre-trained models, we proposed a new model based on CNN, which provides an efficient method for identifying and detecting plant leaf disease. Furthermore, we evaluated the efficacy of our model and compared the results to those of some pre-trained state-of-the-art architectures.",
+      "authors": [
+        "El Houcine El Fatimi"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.CV"
+      ],
+      "primary_category": "cs.LG",
+      "published_at": "2024-12-31T22:56:19Z",
+      "pdf_sha256": "6dc4b4c029e775e21e3fc768cf410f1eb4d0f820dab63322ff5afc1d8f018d21",
+      "pdf_bytes": 6248858,
+      "parse_quality": {
+        "section_count": 5,
+        "chars_per_section": {
+          "abstract": 8000,
+          "introduction": 8000,
+          "methods": 8000,
+          "results": 8000,
+          "conclusion": 3819
+        },
+        "total_chars": 35819,
+        "chunk_count": 60,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2601.00907v1",
+      "arxiv_id": "2601.00907",
+      "title": "Placenta Accreta Spectrum Detection using Multimodal Deep Learning",
+      "abstract": "Placenta Accreta Spectrum (PAS) is a life-threatening obstetric complication involving abnormal placental invasion into the uterine wall. Early and accurate prenatal diagnosis is essential to reduce maternal and neonatal risks. This study aimed to develop and validate a deep learning framework that enhances PAS detection by integrating multiple imaging modalities. A multimodal deep learning model was designed using an intermediate feature-level fusion architecture combining 3D Magnetic Resonance Imaging (MRI) and 2D Ultrasound (US) scans. Unimodal feature extractors, a 3D DenseNet121-Vision Transformer for MRI and a 2D ResNet50 for US, were selected after systematic comparative analysis. Curated datasets comprising 1,293 MRI and 1,143 US scans were used to train the unimodal models and paired samples of patient-matched MRI-US scans was isolated for multimodal model development and evaluation. On an independent test set, the multimodal fusion model achieved superior performance, with an accuracy of 92.5% and an Area Under the Receiver Operating Characteristic Curve (AUC) of 0.927, outperforming the MRI-only (82.5%, AUC 0.825) and US-only (87.5%, AUC 0.879) models. Integrating MRI and US features provides complementary diagnostic information, demonstrating strong potential to enhance prenatal risk assessment and improve patient outcomes.",
+      "authors": [
+        "Sumaiya Ali",
+        "Areej Alhothali",
+        "Sameera Albasri",
+        "Ohoud Alzamzami",
+        "Ahmed Abduljabbar",
+        "Muhammad Alwazzan"
+      ],
+      "categories": [
+        "eess.IV",
+        "cs.AI",
+        "cs.CV",
+        "cs.LG"
+      ],
+      "primary_category": "eess.IV",
+      "published_at": "2025-12-31T23:55:56Z",
+      "pdf_sha256": "35381db4f3b3c49c74e3acaec484d39c3570588bb866c0c2fa13ebb36a37a3b1",
+      "pdf_bytes": 5458510,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "abstract": 1471,
+          "introduction": 7818,
+          "methods": 8000,
+          "results": 1930,
+          "discussion": 2677,
+          "conclusion": 1706
+        },
+        "total_chars": 23602,
+        "chunk_count": 43,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2601.00116v1",
+      "arxiv_id": "2601.00116",
+      "title": "GRL-SNAM: Geometric Reinforcement Learning with Path Differential Hamiltonians for Simultaneous Navigation and Mapping in Unknown Environments",
+      "abstract": "We present GRL-SNAM, a geometric reinforcement learning framework for Simultaneous Navigation and Mapping(SNAM) in unknown environments. A SNAM problem is challenging as it needs to design hierarchical or joint policies of multiple agents that control the movement of a real-life robot towards the goal in mapless environment, i.e. an environment where the map of the environment is not available apriori, and needs to be acquired through sensors. The sensors are invoked from the path learner, i.e. navigator, through active query responses to sensory agents, and along the motion path. GRL-SNAM differs from preemptive navigation algorithms and other reinforcement learning methods by relying exclusively on local sensory observations without constructing a global map. Our approach formulates path navigation and mapping as a dynamic shortest path search and discovery process using controlled Hamiltonian optimization: sensory inputs are translated into local energy landscapes that encode reachability, obstacle barriers, and deformation constraints, while policies for sensing, planning, and reconfiguration evolve stagewise via updating Hamiltonians. A reduced Hamiltonian serves as an adaptive score function, updating kinetic/potential terms, embedding barrier constraints, and continuously refining trajectories as new local information arrives. We evaluate GRL-SNAM on two different 2D navigation tasks. Comparing against local reactive baselines and global policy learning references under identical stagewise sensing constraints, it preserves clearance, generalizes to unseen layouts, and demonstrates that Geometric RL learning via updating Hamiltonians enables high-quality navigation through minimal exploration via local energy refinement rather than extensive global mapping. The code is publicly available on \\href{https://github.com/CVC-Lab/GRL-SNAM}{Github}.",
+      "authors": [
+        "Aditya Sai Ellendula",
+        "Yi Wang",
+        "Minh Nguyen",
+        "Chandrajit Bajaj"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.RO"
+      ],
+      "primary_category": "cs.LG",
+      "published_at": "2025-12-31T21:27:20Z",
+      "pdf_sha256": "696292c8cfd9e8e105ab51e2cffa27c8cbb457c010c606c287caa32cbb25cad3",
+      "pdf_bytes": 5645854,
+      "parse_quality": {
+        "section_count": 4,
+        "chars_per_section": {
+          "abstract": 2291,
+          "introduction": 4186,
+          "conclusion": 8000,
+          "methods": 8000
+        },
+        "total_chars": 22477,
+        "chunk_count": 39,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2601.00090v2",
+      "arxiv_id": "2601.00090",
+      "title": "It's Never Too Late: Noise Optimization for Collapse Recovery in Trained Diffusion Models",
+      "abstract": "Contemporary text-to-image models exhibit a surprising degree of mode collapse, as can be seen when sampling several images given the same text prompt. Previous work has attempted to address this issue by steering the model using guidance mechanisms, or by generating a large pool of candidates and refining them. In this work, we take a different direction and aim for diversity in generations via noise optimization. Specifically, we show that a simple noise optimization objective can mitigate mode collapse while preserving the fidelity of the base model. We also analyze the frequency characteristics of the noise and show that alternative noise initializations with different frequency profiles can improve both optimization and search. Our experiments demonstrate that noise optimization yields superior results in terms of generation quality and diversity.",
+      "authors": [
+        "Anne Harrington",
+        "A. Sophia Koepke",
+        "Shyamgopal Karthik",
+        "Trevor Darrell",
+        "Alexei A. Efros"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.LG"
+      ],
+      "primary_category": "cs.CV",
+      "published_at": "2025-12-31T19:47:49Z",
+      "pdf_sha256": "c9ee1f2793d5963f7da741493baefed90c02ee411f22b3885623bacec345a3bb",
+      "pdf_bytes": 35379641,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "abstract": 927,
+          "introduction": 3338,
+          "background": 8000,
+          "methods": 8000,
+          "experiments": 8000,
+          "conclusion": 921
+        },
+        "total_chars": 29186,
+        "chunk_count": 54,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2301.00304v1",
+      "arxiv_id": "2301.00304",
+      "title": "Sample-Efficient Unsupervised Domain Adaptation of Speech Recognition Systems A case study for Modern Greek",
+      "abstract": "Modern speech recognition systems exhibits rapid performance degradation under domain shift. This issue is especially prevalent in data-scarce settings, such as low-resource languages, where diversity of training data is limited. In this work we propose M2DS2, a simple and sample-efficient finetuning strategy for large pretrained speech models, based on mixed source and target domain self-supervision. We find that including source domain self-supervision stabilizes training and avoids mode collapse of the latent representations. For evaluation, we collect HParl, a $120$ hour speech corpus for Greek, consisting of plenary sessions in the Greek Parliament. We merge HParl with two popular Greek corpora to create GREC-MD, a test-bed for multi-domain evaluation of Greek ASR systems. In our experiments we find that, while other Unsupervised Domain Adaptation baselines fail in this resource-constrained environment, M2DS2 yields significant improvements for cross-domain adaptation, even when a only a few hours of in-domain audio are available. When we relax the problem in a weakly supervised setting, we find that independent adaptation for audio using M2DS2 and language using simple LM augmentation techniques is particularly effective, yielding word error rates comparable to the fully supervised baselines.",
+      "authors": [
+        "Georgios Paraskevopoulos",
+        "Theodoros Kouzelis",
+        "Georgios Rouvalis",
+        "Athanasios Katsamanis",
+        "Vassilis Katsouros",
+        "Alexandros Potamianos"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.SD",
+        "eess.AS"
+      ],
+      "primary_category": "cs.CL",
+      "published_at": "2022-12-31T22:57:30Z",
+      "pdf_sha256": "27b190503767010097f6588d73c57903f91ea8c0ab2602f252810e9458f5b62d",
+      "pdf_bytes": 1803028,
+      "parse_quality": {
+        "section_count": 2,
+        "chars_per_section": {
+          "abstract": 1319,
+          "body": 8000
+        },
+        "total_chars": 9319,
+        "chunk_count": 17,
+        "body_fallback": true,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2301.00303v1",
+      "arxiv_id": "2301.00303",
+      "title": "Rethinking with Retrieval: Faithful Large Language Model Inference",
+      "abstract": "Despite the success of large language models (LLMs) in various natural language processing (NLP) tasks, the stored knowledge in these models may inevitably be incomplete, out-of-date, or incorrect. This motivates the need to utilize external knowledge to assist LLMs. Unfortunately, current methods for incorporating external knowledge often require additional training or fine-tuning, which can be costly and may not be feasible for LLMs. To address this issue, we propose a novel post-processing approach, rethinking with retrieval (RR), which retrieves relevant external knowledge based on the decomposed reasoning steps obtained from the chain-of-thought (CoT) prompting. This lightweight approach does not require additional training or fine-tuning and is not limited by the input length of LLMs. We evaluate the effectiveness of RR through extensive experiments with GPT-3 on three complex reasoning tasks: commonsense reasoning, temporal reasoning, and tabular reasoning. Our results show that RR can produce more faithful explanations and improve the performance of LLMs.",
+      "authors": [
+        "Hangfeng He",
+        "Hongming Zhang",
+        "Dan Roth"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "primary_category": "cs.CL",
+      "published_at": "2022-12-31T22:35:34Z",
+      "pdf_sha256": "587f75208d768a4d5978a858a1355df2025c4cfd2cefb0a1f375c9503a518bc3",
+      "pdf_bytes": 360601,
+      "parse_quality": {
+        "section_count": 7,
+        "chars_per_section": {
+          "abstract": 1080,
+          "introduction": 2972,
+          "background": 8000,
+          "experiments": 6822,
+          "methods": 8000,
+          "discussion": 2201,
+          "conclusion": 569
+        },
+        "total_chars": 29644,
+        "chunk_count": 54,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2301.00234v6",
+      "arxiv_id": "2301.00234",
+      "title": "A Survey on In-context Learning",
+      "abstract": "With the increasing capabilities of large language models (LLMs), in-context learning (ICL) has emerged as a new paradigm for natural language processing (NLP), where LLMs make predictions based on contexts augmented with a few examples. It has been a significant trend to explore ICL to evaluate and extrapolate the ability of LLMs. In this paper, we aim to survey and summarize the progress and challenges of ICL. We first present a formal definition of ICL and clarify its correlation to related studies. Then, we organize and discuss advanced techniques, including training strategies, prompt designing strategies, and related analysis. Additionally, we explore various ICL application scenarios, such as data engineering and knowledge updating. Finally, we address the challenges of ICL and suggest potential directions for further research. We hope that our work can encourage more research on uncovering how ICL works and improving ICL.",
+      "authors": [
+        "Qingxiu Dong",
+        "Lei Li",
+        "Damai Dai",
+        "Ce Zheng",
+        "Jingyuan Ma",
+        "Rui Li",
+        "Heming Xia",
+        "Jingjing Xu",
+        "Zhiyong Wu",
+        "Tianyu Liu",
+        "Baobao Chang",
+        "Xu Sun"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "primary_category": "cs.CL",
+      "published_at": "2022-12-31T15:57:09Z",
+      "pdf_sha256": "9ab5ce1410b4df5d9102caa1d2e7ad64abc0eb229ed60501f313b9482c2475e8",
+      "pdf_bytes": 5637331,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "abstract": 945,
+          "introduction": 4256,
+          "discussion": 8000,
+          "methods": 8000,
+          "conclusion": 448,
+          "limitations": 730
+        },
+        "total_chars": 22379,
+        "chunk_count": 41,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2401.00609v1",
+      "arxiv_id": "2401.00609",
+      "title": "A Survey of Personality, Persona, and Profile in Conversational Agents and Chatbots",
+      "abstract": "We present a review of personality in neural conversational agents (CAs), also called chatbots. First, we define Personality, Persona, and Profile. We explain all personality schemes which have been used in CAs, and list models under the scheme(s) which they use. Second we describe 21 datasets which have been developed in recent CA personality research. Third, we define the methods used to embody personality in a CA, and review recent models using them. Fourth, we survey some relevant reviews on CAs, personality, and related topics. Finally, we draw conclusions and identify some research challenges for this important emerging field.",
+      "authors": [
+        "Richard Sutcliffe"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "primary_category": "cs.CL",
+      "published_at": "2023-12-31T23:41:41Z",
+      "pdf_sha256": "1b8f568410787602ff3974ad9dd18ad5294a3ac375afa738ec56fb1b90df90b7",
+      "pdf_bytes": 506552,
+      "parse_quality": {
+        "section_count": 4,
+        "chars_per_section": {
+          "abstract": 812,
+          "introduction": 8000,
+          "conclusion": 2804,
+          "methods": 8000
+        },
+        "total_chars": 19616,
+        "chunk_count": 35,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2401.00908v1",
+      "arxiv_id": "2401.00908",
+      "title": "DocLLM: A layout-aware generative language model for multimodal document understanding",
+      "abstract": "Enterprise documents such as forms, invoices, receipts, reports, contracts, and other similar records, often carry rich semantics at the intersection of textual and spatial modalities. The visual cues offered by their complex layouts play a crucial role in comprehending these documents effectively. In this paper, we present DocLLM, a lightweight extension to traditional large language models (LLMs) for reasoning over visual documents, taking into account both textual semantics and spatial layout. Our model differs from existing multimodal LLMs by avoiding expensive image encoders and focuses exclusively on bounding box information to incorporate the spatial layout structure. Specifically, the cross-alignment between text and spatial modalities is captured by decomposing the attention mechanism in classical transformers to a set of disentangled matrices. Furthermore, we devise a pre-training objective that learns to infill text segments. This approach allows us to address irregular layouts and heterogeneous content frequently encountered in visual documents. The pre-trained model is fine-tuned using a large-scale instruction dataset, covering four core document intelligence tasks. We demonstrate that our solution outperforms SotA LLMs on 14 out of 16 datasets across all tasks, and generalizes well to 4 out of 5 previously unseen datasets.",
+      "authors": [
+        "Dongsheng Wang",
+        "Natraj Raman",
+        "Mathieu Sibue",
+        "Zhiqiang Ma",
+        "Petr Babkin",
+        "Simerjot Kaur",
+        "Yulong Pei",
+        "Armineh Nourbakhsh",
+        "Xiaomo Liu"
+      ],
+      "categories": [
+        "cs.CL"
+      ],
+      "primary_category": "cs.CL",
+      "published_at": "2023-12-31T22:37:52Z",
+      "pdf_sha256": "955d6ec52dd0b0c1e1b5c2129f7f39ad2814236f373c4c5a1e35a01f2c9466c7",
+      "pdf_bytes": 863690,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "abstract": 1415,
+          "introduction": 5935,
+          "background": 8000,
+          "experiments": 8000,
+          "methods": 6359,
+          "conclusion": 2174
+        },
+        "total_chars": 31883,
+        "chunk_count": 57,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2401.00595v3",
+      "arxiv_id": "2401.00595",
+      "title": "State of What Art? A Call for Multi-Prompt LLM Evaluation",
+      "abstract": "Recent advances in large language models (LLMs) have led to the development of various evaluation benchmarks. These benchmarks typically rely on a single instruction template for evaluating all LLMs on a specific task. In this paper, we comprehensively analyze the brittleness of results obtained via single-prompt evaluations across 6.5M instances, involving 20 different LLMs and 39 tasks from 3 benchmarks. To improve robustness of the analysis, we propose to evaluate LLMs with a set of diverse prompts instead. We discuss tailored evaluation metrics for specific use cases (e.g., LLM developers vs. developers interested in a specific downstream task), ensuring a more reliable and meaningful assessment of LLM capabilities. We then implement these criteria and conduct evaluations of multiple models, providing insights into the true strengths and limitations of current LLMs.",
+      "authors": [
+        "Moran Mizrahi",
+        "Guy Kaplan",
+        "Dan Malkin",
+        "Rotem Dror",
+        "Dafna Shahaf",
+        "Gabriel Stanovsky"
+      ],
+      "categories": [
+        "cs.CL"
+      ],
+      "primary_category": "cs.CL",
+      "published_at": "2023-12-31T22:21:36Z",
+      "pdf_sha256": "11784ad6f746c195833353d9cb4793000745aad8c298d6a06556df0a9965001e",
+      "pdf_bytes": 1078029,
+      "parse_quality": {
+        "section_count": 7,
+        "chars_per_section": {
+          "abstract": 815,
+          "introduction": 6841,
+          "experiments": 1829,
+          "methods": 8000,
+          "results": 1148,
+          "background": 1986,
+          "conclusion": 1107
+        },
+        "total_chars": 21726,
+        "chunk_count": 41,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2501.00663v1",
+      "arxiv_id": "2501.00663",
+      "title": "Titans: Learning to Memorize at Test Time",
+      "abstract": "Over more than a decade there has been an extensive research effort on how to effectively utilize recurrent models and attention. While recurrent models aim to compress the data into a fixed-size memory (called hidden state), attention allows attending to the entire context window, capturing the direct dependencies of all tokens. This more accurate modeling of dependencies, however, comes with a quadratic cost, limiting the model to a fixed-length context. We present a new neural long-term memory module that learns to memorize historical context and helps attention to attend to the current context while utilizing long past information. We show that this neural memory has the advantage of fast parallelizable training while maintaining a fast inference. From a memory perspective, we argue that attention due to its limited context but accurate dependency modeling performs as a short-term memory, while neural memory due to its ability to memorize the data, acts as a long-term, more persistent, memory. Based on these two modules, we introduce a new family of architectures, called Titans, and present three variants to address how one can effectively incorporate memory into this architecture. Our experimental results on language modeling, common-sense reasoning, genomics, and time series tasks show that Titans are more effective than Transformers and recent modern linear recurrent models. They further can effectively scale to larger than 2M context window size with higher accuracy in needle-in-haystack tasks compared to baselines.",
+      "authors": [
+        "Ali Behrouz",
+        "Peilin Zhong",
+        "Vahab Mirrokni"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.CL"
+      ],
+      "primary_category": "cs.LG",
+      "published_at": "2024-12-31T22:32:03Z",
+      "pdf_sha256": "a65e4a7d02784df1a040b487127e6dd09fff4474e5caf94d93263af3d50cfbc2",
+      "pdf_bytes": 3657065,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "abstract": 1554,
+          "introduction": 8000,
+          "background": 8000,
+          "experiments": 7009,
+          "methods": 8000,
+          "conclusion": 964
+        },
+        "total_chars": 33527,
+        "chunk_count": 63,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2501.00659v2",
+      "arxiv_id": "2501.00659",
+      "title": "Why Are Positional Encodings Nonessential for Deep Autoregressive Transformers? Revisiting a Petroglyph",
+      "abstract": "Do autoregressive Transformer language models require explicit positional encodings (PEs)? The answer is 'no' provided they have more than one layer -- they can distinguish sequences with permuted tokens without the need for explicit PEs. This follows from the fact that a cascade of (permutation invariant) set processors can collectively exhibit sequence-sensitive behavior in the autoregressive setting. This property has been known since early efforts (contemporary with GPT-2) adopting the Transformer for language modeling. However, this result does not appear to have been well disseminated, leading to recent rediscoveries. This may be partially due to a sudden growth of the language modeling community after the advent of GPT-2/3, but perhaps also due to the lack of a clear explanation in prior work, despite being commonly understood by practitioners in the past. Here we review the long-forgotten explanation why explicit PEs are nonessential for multi-layer autoregressive Transformers (in contrast, one-layer models require PEs to discern order information of their inputs), as well as the origin of this result, and hope to re-establish it as a common knowledge.",
+      "authors": [
+        "Kazuki Irie"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.CL"
+      ],
+      "primary_category": "cs.LG",
+      "published_at": "2024-12-31T22:12:45Z",
+      "pdf_sha256": "cd3604e020f8e74d2014e91a9eb88df6d93a6b3cf2d0cd6dccde7c062384f255",
+      "pdf_bytes": 350384,
+      "parse_quality": {
+        "section_count": 4,
+        "chars_per_section": {
+          "abstract": 1197,
+          "introduction": 8000,
+          "conclusion": 3538,
+          "limitations": 851
+        },
+        "total_chars": 13586,
+        "chunk_count": 26,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2501.00656v3",
+      "arxiv_id": "2501.00656",
+      "title": "2 OLMo 2 Furious",
+      "abstract": "We present OLMo 2, the next generation of our fully open language models. OLMo 2 includes a family of dense autoregressive language models at 7B, 13B and 32B scales with fully released artifacts -- model weights, full training data, training code and recipes, training logs and thousands of intermediate checkpoints. In this work, we describe our modified model architecture and training recipe, focusing on techniques for achieving better training stability and improved per-token efficiency. Our updated pretraining data mixture introduces a new, specialized data mix called Dolmino Mix 1124, which significantly improves model capabilities across many downstream task benchmarks when introduced via late-stage curriculum training (i.e. specialized data during the annealing phase of pretraining). Finally, we incorporate best practices from T\u00fclu 3 to develop OLMo 2-Instruct, focusing on permissive data and extending our final-stage reinforcement learning with verifiable rewards (RLVR). Our OLMo 2 base models sit at the Pareto frontier of performance to training compute, often matching or outperforming open-weight only models like Llama 3.1, Qwen 2.5, and Gemma 2 while using fewer FLOPs and with fully transparent training data, code, and recipe. Our fully open OLMo 2-Instruct models are competitive with open-weight only models of comparable size and even some proprietary models like GPT-3.5 Turbo and GPT 4o Mini.",
+      "authors": [
+        "Team OLMo",
+        "Pete Walsh",
+        "Luca Soldaini",
+        "Dirk Groeneveld",
+        "Kyle Lo",
+        "Shane Arora",
+        "Akshita Bhagia",
+        "Yuling Gu",
+        "Shengyi Huang",
+        "Matt Jordan",
+        "Nathan Lambert",
+        "Dustin Schwenk"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.LG"
+      ],
+      "primary_category": "cs.CL",
+      "published_at": "2024-12-31T21:55:10Z",
+      "pdf_sha256": "8614beaaf35ce5d20fde755d350bd02637bdbe5a390de237ce942c8ac4ee2dd8",
+      "pdf_bytes": 4213966,
+      "parse_quality": {
+        "section_count": 5,
+        "chars_per_section": {
+          "abstract": 1474,
+          "introduction": 8000,
+          "methods": 8000,
+          "conclusion": 4252,
+          "discussion": 199
+        },
+        "total_chars": 21925,
+        "chunk_count": 49,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2601.02404v1",
+      "arxiv_id": "2601.02404",
+      "title": "PCEval: A Benchmark for Evaluating Physical Computing Capabilities of Large Language Models",
+      "abstract": "Large Language Models (LLMs) have demonstrated remarkable capabilities across various domains, including software development, education, and technical assistance. Among these, software development is one of the key areas where LLMs are increasingly adopted. However, when hardware constraints are considered-for instance, in physical computing, where software must interact with and control physical hardware -their effectiveness has not been fully explored. To address this gap, we introduce \\textsc{PCEval} (Physical Computing Evaluation), the first benchmark in physical computing that enables a fully automatic evaluation of the capabilities of LLM in both the logical and physical aspects of the projects, without requiring human assessment. Our evaluation framework assesses LLMs in generating circuits and producing compatible code across varying levels of project complexity. Through comprehensive testing of 13 leading models, \\textsc{PCEval} provides the first reproducible and automatically validated empirical assessment of LLMs' ability to reason about fundamental hardware implementation constraints within a simulation environment. Our findings reveal that while LLMs perform well in code generation and logical circuit design, they struggle significantly with physical breadboard layout creation, particularly in managing proper pin connections and avoiding circuit errors. \\textsc{PCEval} advances our understanding of AI assistance in hardware-dependent computing environments and establishes a foundation for developing more effective tools to support physical computing education.",
+      "authors": [
+        "Inpyo Song",
+        "Eunji Jeon",
+        "Jangwon Lee"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "primary_category": "cs.CL",
+      "published_at": "2025-12-31T22:34:27Z",
+      "pdf_sha256": "b762ea7438ff5c5a2a70407cc2951caff1a58a6b168d65cd4a50c88dbe6530af",
+      "pdf_bytes": 15364159,
+      "parse_quality": {
+        "section_count": 8,
+        "chars_per_section": {
+          "abstract": 1576,
+          "introduction": 6168,
+          "background": 2827,
+          "experiments": 8000,
+          "methods": 8000,
+          "limitations": 1061,
+          "conclusion": 7093,
+          "results": 1885
+        },
+        "total_chars": 36610,
+        "chunk_count": 63,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2601.11580v2",
+      "arxiv_id": "2601.11580",
+      "title": "Speculative Decoding: Performance or Illusion?",
+      "abstract": "Speculative decoding (SD) has become a popular technique to accelerate Large Language Model (LLM) inference, yet its real-world effectiveness remains unclear as prior evaluations rely on research prototypes and unrealistically small batch sizes. We present, to our knowledge, the first systematic study of SD on a production-grade and widely deployed inference engine (vLLM), covering multiple SD variants ($n$-gram, EAGLE/EAGLE-3, Draft-Model, Multi-Token Prediction) across diverse workloads, model scales, and batch sizes. We analyze key factors governing SD performance, and quantify a theoretical upper bound on SD speedup. Our results show that verification by the target model dominates the execution, while acceptance length varies markedly across output token positions, requests, and datasets. Comparing measured performance with theoretical bounds reveals substantial gaps between observed and theoretical upper bounds, and we leverage this observation to highlight new research opportunities that our study opens up in improving SD.",
+      "authors": [
+        "Xiaoxuan Liu",
+        "Jiaxiang Yu",
+        "Jongseok Park",
+        "Ion Stoica",
+        "Alvin Cheung"
+      ],
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "primary_category": "cs.CL",
+      "published_at": "2025-12-31T20:31:36Z",
+      "pdf_sha256": "53f5b3fdf203e8aa7ea87bdbca0655140cfbe6e8f5c686ffde2b42cb1a4eac8d",
+      "pdf_bytes": 15767655,
+      "parse_quality": {
+        "section_count": 5,
+        "chars_per_section": {
+          "abstract": 3328,
+          "introduction": 8000,
+          "results": 8000,
+          "methods": 8000,
+          "conclusion": 675
+        },
+        "total_chars": 28003,
+        "chunk_count": 51,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2601.00100v1",
+      "arxiv_id": "2601.00100",
+      "title": "Learning Speech Representations with Variational Predictive Coding",
+      "abstract": "Despite being the best known objective for learning speech representations, the HuBERT objective has not been further developed and improved. We argue that it is the lack of an underlying principle that stalls the development, and, in this paper, we show that predictive coding under a variational view is the principle behind the HuBERT objective. Due to its generality, our formulation provides opportunities to improve parameterization and optimization, and we show two simple modifications that bring immediate improvements to the HuBERT objective. In addition, the predictive coding formulation has tight connections to various other objectives, such as APC, CPC, wav2vec, and BEST-RQ. Empirically, the improvement in pre-training brings significant improvements to four downstream tasks: phone classification, f0 tracking, speaker recognition, and automatic speech recognition, highlighting the importance of the predictive coding interpretation.",
+      "authors": [
+        "Sung-Lin Yeh",
+        "Peter Bell",
+        "Hao Tang"
+      ],
+      "categories": [
+        "eess.AS",
+        "cs.CL"
+      ],
+      "primary_category": "eess.AS",
+      "published_at": "2025-12-31T20:10:29Z",
+      "pdf_sha256": "96e65623738b404a0b9380676a8ec1097f683357c77a410b0eaa6190952f8d09",
+      "pdf_bytes": 419510,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "abstract": 954,
+          "introduction": 8000,
+          "experiments": 480,
+          "methods": 7585,
+          "results": 8000,
+          "conclusion": 848
+        },
+        "total_chars": 25867,
+        "chunk_count": 50,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2301.07519v1",
+      "arxiv_id": "2301.07519",
+      "title": "Site-specific weed management in corn using UAS imagery analysis and computer vision techniques",
+      "abstract": "Currently, weed control in commercial corn production is performed without considering weed distribution information in the field. This kind of weed management practice leads to excessive amounts of chemical herbicides being applied in a given field. The objective of this study was to perform site-specific weed control (SSWC) in a corn field by 1) using an unmanned aerial system (UAS) to map the spatial distribution information of weeds in the field; 2) creating a prescription map based on the weed distribution map, and 3) spraying the field using the prescription map and a commercial size sprayer. In this study, we are proposing a Crop Row Identification (CRI) algorithm, a computer vision algorithm that identifies corn rows on UAS imagery. After being identified, the corn rows were then removed from the imagery and the remaining vegetation fraction was classified as weeds. Based on that information, a grid-based weed prescription map was created and the weed control application was implemented through a commercial-size sprayer. The decision of spraying herbicides on a particular grid was based on the presence of weeds in that grid cell. All the grids that contained at least one weed were sprayed, while the grids free of weeds were not. Using our SSWC approach, we were able to save 26.23\\% of the land (1.97 acres) from being sprayed with chemical herbicides compared to the existing method. This study presents a full workflow from UAS image collection to field weed control implementation using a commercial-size sprayer, and it shows that some level of savings can potentially be obtained even in a situation with high weed infestation, which might provide an opportunity to reduce chemical usage in corn production systems.",
+      "authors": [
+        "Ranjan Sapkota",
+        "John Stenger",
+        "Michael Ostlie",
+        "Paulo Flores"
+      ],
+      "categories": [
+        "cs.CV"
+      ],
+      "primary_category": "cs.CV",
+      "published_at": "2022-12-31T21:48:14Z",
+      "pdf_sha256": "99e6a49b95bdca203c47953d21eaa9127b409cc2c7a13c924760aca6b4e3e7d2",
+      "pdf_bytes": 1926314,
+      "parse_quality": {
+        "section_count": 2,
+        "chars_per_section": {
+          "abstract": 2292,
+          "body": 8000
+        },
+        "total_chars": 10292,
+        "chunk_count": 20,
+        "body_fallback": true,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2301.00265v2",
+      "arxiv_id": "2301.00265",
+      "title": "Source-Free Unsupervised Domain Adaptation: A Survey",
+      "abstract": "Unsupervised domain adaptation (UDA) via deep learning has attracted appealing attention for tackling domain-shift problems caused by distribution discrepancy across different domains. Existing UDA approaches highly depend on the accessibility of source domain data, which is usually limited in practical scenarios due to privacy protection, data storage and transmission cost, and computation burden. To tackle this issue, many source-free unsupervised domain adaptation (SFUDA) methods have been proposed recently, which perform knowledge transfer from a pre-trained source model to unlabeled target domain with source data inaccessible. A comprehensive review of these works on SFUDA is of great significance. In this paper, we provide a timely and systematic literature review of existing SFUDA approaches from a technical perspective. Specifically, we categorize current SFUDA studies into two groups, i.e., white-box SFUDA and black-box SFUDA, and further divide them into finer subcategories based on different learning strategies they use. We also investigate the challenges of methods in each subcategory, discuss the advantages/disadvantages of white-box and black-box SFUDA methods, conclude the commonly used benchmark datasets, and summarize the popular techniques for improved generalizability of models learned without using source data. We finally discuss several promising future directions in this field.",
+      "authors": [
+        "Yuqi Fang",
+        "Pew-Thian Yap",
+        "Weili Lin",
+        "Hongtu Zhu",
+        "Mingxia Liu"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "primary_category": "cs.CV",
+      "published_at": "2022-12-31T18:44:45Z",
+      "pdf_sha256": "ee00031736ef88c9fb9eb4f53b89dc9630251ff2e71c189bd9adcf70e5d895fe",
+      "pdf_bytes": 1743943,
+      "parse_quality": {
+        "section_count": 5,
+        "chars_per_section": {
+          "introduction": 8000,
+          "discussion": 8000,
+          "conclusion": 852,
+          "methods": 8000,
+          "abstract": 1422
+        },
+        "total_chars": 26274,
+        "chunk_count": 47,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2301.00264v1",
+      "arxiv_id": "2301.00264",
+      "title": "Application Of ADNN For Background Subtraction In Smart Surveillance System",
+      "abstract": "Object movement identification is one of the most researched problems in the field of computer vision. In this task, we try to classify a pixel as foreground or background. Even though numerous traditional machine learning and deep learning methods already exist for this problem, the two major issues with most of them are the need for large amounts of ground truth data and their inferior performance on unseen videos. Since every pixel of every frame has to be labeled, acquiring large amounts of data for these techniques gets rather expensive. Recently, Zhao et al. [1] proposed one of a kind Arithmetic Distribution Neural Network (ADNN) for universal background subtraction which utilizes probability information from the histogram of temporal pixels and achieves promising results. Building onto this work, we developed an intelligent video surveillance system that uses ADNN architecture for motion detection, trims the video with parts only containing motion, and performs anomaly detection on the trimmed video.",
+      "authors": [
+        "Piyush Batra",
+        "Gagan Raj Singh",
+        "Neeraj Goyal"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "primary_category": "cs.CV",
+      "published_at": "2022-12-31T18:42:11Z",
+      "pdf_sha256": "bd696c2e0c7fb3578e54f86bcb2731caee4f2465390185981b8836d1a082d0bc",
+      "pdf_bytes": 2314984,
+      "parse_quality": {
+        "section_count": 5,
+        "chars_per_section": {
+          "methods": 4777,
+          "results": 1955,
+          "discussion": 1634,
+          "background": 6842,
+          "abstract": 1022
+        },
+        "total_chars": 16230,
+        "chunk_count": 28,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2401.00608v5",
+      "arxiv_id": "2401.00608",
+      "title": "Reviving the Context: Camera Trap Species Classification as Link Prediction on Multimodal Knowledge Graphs",
+      "abstract": "Camera traps are important tools in animal ecology for biodiversity monitoring and conservation. However, their practical application is limited by issues such as poor generalization to new and unseen locations. Images are typically associated with diverse forms of context, which may exist in different modalities. In this work, we exploit the structured context linked to camera trap images to boost out-of-distribution generalization for species classification tasks in camera traps. For instance, a picture of a wild animal could be linked to details about the time and place it was captured, as well as structured biological knowledge about the animal species. While often overlooked by existing studies, incorporating such context offers several potential benefits for better image understanding, such as addressing data scarcity and enhancing generalization. However, effectively incorporating such heterogeneous context into the visual domain is a challenging problem. To address this, we propose a novel framework that transforms species classification as link prediction in a multimodal knowledge graph (KG). This framework enables the seamless integration of diverse multimodal contexts for visual recognition. We apply this framework for out-of-distribution species classification on the iWildCam2020-WILDS and Snapshot Mountain Zebra datasets and achieve competitive performance with state-of-the-art approaches. Furthermore, our framework enhances sample efficiency for recognizing under-represented species.",
+      "authors": [
+        "Vardaan Pahuja",
+        "Weidi Luo",
+        "Yu Gu",
+        "Cheng-Hao Tu",
+        "Hong-You Chen",
+        "Tanya Berger-Wolf",
+        "Charles Stewart",
+        "Song Gao",
+        "Wei-Lun Chao",
+        "Yu Su"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "primary_category": "cs.CV",
+      "published_at": "2023-12-31T23:32:03Z",
+      "pdf_sha256": "4c78f76bd352782d06dd83e2f94461d158b8efabb1a10da8136baac9efc8f055",
+      "pdf_bytes": 1401385,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "abstract": 2967,
+          "introduction": 7128,
+          "background": 8000,
+          "methods": 8000,
+          "experiments": 2434,
+          "results": 1527
+        },
+        "total_chars": 30056,
+        "chunk_count": 52,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2401.00604v2",
+      "arxiv_id": "2401.00604",
+      "title": "SteinDreamer: Variance Reduction for Text-to-3D Score Distillation via Stein Identity",
+      "abstract": "Score distillation has emerged as one of the most prevalent approaches for text-to-3D asset synthesis. Essentially, score distillation updates 3D parameters by lifting and back-propagating scores averaged over different views. In this paper, we reveal that the gradient estimation in score distillation is inherent to high variance. Through the lens of variance reduction, the effectiveness of SDS and VSD can be interpreted as applications of various control variates to the Monte Carlo estimator of the distilled score. Motivated by this rethinking and based on Stein's identity, we propose a more general solution to reduce variance for score distillation, termed Stein Score Distillation (SSD). SSD incorporates control variates constructed by Stein identity, allowing for arbitrary baseline functions. This enables us to include flexible guidance priors and network architectures to explicitly optimize for variance reduction. In our experiments, the overall pipeline, dubbed SteinDreamer, is implemented by instantiating the control variate with a monocular depth estimator. The results suggest that SSD can effectively reduce the distillation variance and consistently improve visual quality for both object- and scene-level generation. Moreover, we demonstrate that SteinDreamer achieves faster convergence than existing methods due to more stable gradient updates.",
+      "authors": [
+        "Peihao Wang",
+        "Zhiwen Fan",
+        "Dejia Xu",
+        "Dilin Wang",
+        "Sreyas Mohan",
+        "Forrest Iandola",
+        "Rakesh Ranjan",
+        "Yilei Li",
+        "Qiang Liu",
+        "Zhangyang Wang",
+        "Vikas Chandra"
+      ],
+      "categories": [
+        "cs.CV"
+      ],
+      "primary_category": "cs.CV",
+      "published_at": "2023-12-31T23:04:25Z",
+      "pdf_sha256": "25b5396194643629309fe44cdad0f8d3f39da235eba49826cf82916bc5ee401a",
+      "pdf_bytes": 25806963,
+      "parse_quality": {
+        "section_count": 7,
+        "chars_per_section": {
+          "abstract": 1371,
+          "introduction": 5659,
+          "background": 8000,
+          "discussion": 2629,
+          "experiments": 5955,
+          "methods": 6388,
+          "conclusion": 1323
+        },
+        "total_chars": 31325,
+        "chunk_count": 57,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2501.00654v4",
+      "arxiv_id": "2501.00654",
+      "title": "ICONS: Influence Consensus for Vision-Language Data Selection",
+      "abstract": "Training vision-language models via instruction tuning relies on large data mixtures spanning diverse tasks and domains, yet these mixtures frequently include redundant information that increases computational costs without proportional gains. Existing methods typically rely on task-agnostic heuristics to estimate data importance, limiting their effectiveness across tasks. We introduce ICONS, a gradient-based Influence CONsensus approach for vision-language data Selection. Our method leverages first-order training dynamics to estimate each example's influence on validation performance, then aggregates these estimates across tasks via majority voting. This cross-task consensus identifies consistently valuable data points while mitigating score calibration and outlier sensitivity, enabling robust and scalable data selection for diverse multitask mixtures. Models trained on our selected 20% data subset from LLAVA-665K (respectively: from CAMBRIAN-7M, from VISION-FLAN-186K) retain 98.6% (respectively: 98.8%, 99.8%) of full-dataset performance. We demonstrate that our selected data generalizes to unseen tasks and model architectures, and release three compact subsets LLAVA-ICONS-133K, CAMBRIAN-ICONS-1.4M, and VISION-FLAN-ICONS-37K for efficient vision-language model development.",
+      "authors": [
+        "Xindi Wu",
+        "Mengzhou Xia",
+        "Rulin Shao",
+        "Zhiwei Deng",
+        "Pang Wei Koh",
+        "Olga Russakovsky"
+      ],
+      "categories": [
+        "cs.CV",
+        "cs.CL",
+        "cs.LG"
+      ],
+      "primary_category": "cs.CV",
+      "published_at": "2024-12-31T21:33:38Z",
+      "pdf_sha256": "38941fdec870acd569d09d29888e7dfb50282f29390a9f9b05ed7ad8fb2d5162",
+      "pdf_bytes": 16713844,
+      "parse_quality": {
+        "section_count": 7,
+        "chars_per_section": {
+          "abstract": 1292,
+          "introduction": 5117,
+          "background": 8000,
+          "experiments": 2379,
+          "results": 4940,
+          "methods": 8000,
+          "conclusion": 2547
+        },
+        "total_chars": 32275,
+        "chunk_count": 55,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2601.00139v1",
+      "arxiv_id": "2601.00139",
+      "title": "Compressed Map Priors for 3D Perception",
+      "abstract": "Human drivers rarely travel where no person has gone before. After all, thousands of drivers use busy city roads every day, and only one can claim to be the first. The same holds for autonomous computer vision systems. The vast majority of the deployment area of an autonomous vision system will have been visited before. Yet, most autonomous vehicle vision systems act as if they are encountering each location for the first time. In this work, we present Compressed Map Priors (CMP), a simple but effective framework to learn spatial priors from historic traversals. The map priors use a binarized hashmap that requires only $32\\text{KB}/\\text{km}^2$, a $20\\times$ reduction compared to the dense storage. Compressed Map Priors easily integrate into leading 3D perception systems at little to no extra computational costs, and lead to a significant and consistent improvement in 3D object detection on the nuScenes dataset across several architectures.",
+      "authors": [
+        "Brady Zhou",
+        "Philipp Kr\u00e4henb\u00fchl"
+      ],
+      "categories": [
+        "cs.CV"
+      ],
+      "primary_category": "cs.CV",
+      "published_at": "2025-12-31T23:38:00Z",
+      "pdf_sha256": "e023ff5fb85952fcdc11f8a42cf0a915535363a702f04f859e3d04b8fda07aa2",
+      "pdf_bytes": 1607249,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "abstract": 932,
+          "introduction": 8000,
+          "background": 8000,
+          "experiments": 2930,
+          "methods": 8000,
+          "conclusion": 839
+        },
+        "total_chars": 28701,
+        "chunk_count": 52,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2601.00138v2",
+      "arxiv_id": "2601.00138",
+      "title": "Explicit Abstention Knobs for Predictable Reliability in Video Question Answering",
+      "abstract": "High-stakes deployment of vision-language models (VLMs) requires selective prediction, where systems abstain when uncertain rather than risk costly errors. We investigate whether confidence-based abstention provides reliable control over error rates in video question answering, and whether that control remains robust under distribution shift. Using NExT-QA and Gemini 2.0 Flash, we establish two findings. First, confidence thresholding provides mechanistic control in-distribution. Sweeping threshold epsilon produces smooth risk-coverage tradeoffs, reducing error rates f",
+      "authors": [
+        "Jorge Ortiz"
+      ],
+      "categories": [
+        "cs.AI",
+        "cs.CV"
+      ],
+      "primary_category": "cs.AI",
+      "published_at": "2025-12-31T23:27:32Z",
+      "pdf_sha256": "aa9d32395b73a52787ccf03224a45711529e265ad0af234451022ee9797cdc34",
+      "pdf_bytes": 9233818,
+      "parse_quality": {
+        "section_count": 8,
+        "chars_per_section": {
+          "abstract": 1378,
+          "introduction": 3649,
+          "background": 8000,
+          "experiments": 8000,
+          "results": 8000,
+          "discussion": 8000,
+          "limitations": 2344,
+          "conclusion": 8000
+        },
+        "total_chars": 47371,
+        "chunk_count": 81,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2301.00260v1",
+      "arxiv_id": "2301.00260",
+      "title": "Confidence Sets under Generalized Self-Concordance",
+      "abstract": "This paper revisits a fundamental problem in statistical inference from a non-asymptotic theoretical viewpoint $\\unicode{x2013}$ the construction of confidence sets. We establish a finite-sample bound for the estimator, characterizing its asymptotic behavior in a non-asymptotic fashion. An important feature of our bound is that its dimension dependency is captured by the effective dimension $\\unicode{x2013}$ the trace of the limiting sandwich covariance $\\unicode{x2013}$ which can be much smaller than the parameter dimension in some regimes. We then illustrate how the bound can be used to obtain a confidence set whose shape is adapted to the optimization landscape induced by the loss function. Unlike previous works that rely heavily on the strong convexity of the loss function, we only assume the Hessian is lower bounded at optimum and allow it to gradually becomes degenerate. This property is formalized by the notion of generalized self-concordance which originated from convex optimization. Moreover, we demonstrate how the effective dimension can be estimated from data and characterize its estimation accuracy. We apply our results to maximum likelihood estimation with generalized linear models, score matching with exponential families, and hypothesis testing with Rao's score test.",
+      "authors": [
+        "Lang Liu",
+        "Zaid Harchaoui"
+      ],
+      "categories": [
+        "math.ST",
+        "stat.ML"
+      ],
+      "primary_category": "math.ST",
+      "published_at": "2022-12-31T17:45:11Z",
+      "pdf_sha256": "7c78919edca8d71f7ba3e547f888212213913fd92b381b601bccfc4b4be0cffe",
+      "pdf_bytes": 688427,
+      "parse_quality": {
+        "section_count": 6,
+        "chars_per_section": {
+          "abstract": 1247,
+          "introduction": 2984,
+          "methods": 8000,
+          "results": 5960,
+          "background": 7176,
+          "discussion": 8000
+        },
+        "total_chars": 33367,
+        "chunk_count": 68,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2301.00241v1",
+      "arxiv_id": "2301.00241",
+      "title": "Contextual Bandits and Optimistically Universal Learning",
+      "abstract": "We consider the contextual bandit problem on general action and context spaces, where the learner's rewards depend on their selected actions and an observable context. This generalizes the standard multi-armed bandit to the case where side information is available, e.g., patients' records or customers' history, which allows for personalized treatment. We focus on consistency -- vanishing regret compared to the optimal policy -- and show that for large classes of non-i.i.d. contexts, consistency can be achieved regardless of the time-invariant reward mechanism, a property known as universal consistency. Precisely, we first give necessary and sufficient conditions on the context-generating process for universal consistency to be possible. Second, we show that there always exists an algorithm that guarantees universal consistency whenever this is achievable, called an optimistically universal learning rule. Interestingly, for finite action spaces, learnable processes for universal learning are exactly the same as in the full-feedback setting of supervised learning, previously studied in the literature. In other words, learning can be performed with partial feedback without any generalization cost. The algorithms balance a trade-off between generalization (similar to structural risk minimization) and personalization (tailoring actions to specific contexts). Lastly, we consider the case of added continuity assumptions on rewards and show that these lead to universal consistency for significantly larger classes of data-generating processes.",
+      "authors": [
+        "Moise Blanchard",
+        "Steve Hanneke",
+        "Patrick Jaillet"
+      ],
+      "categories": [
+        "stat.ML",
+        "cs.LG",
+        "math.ST"
+      ],
+      "primary_category": "stat.ML",
+      "published_at": "2022-12-31T16:15:28Z",
+      "pdf_sha256": "103e7d892ca009a83909c2128f371da0c82f423cc8f52e412deb7fd2f3cef8cf",
+      "pdf_bytes": 521693,
+      "parse_quality": {
+        "section_count": 1,
+        "chars_per_section": {
+          "abstract": 1560
+        },
+        "total_chars": 1560,
+        "chunk_count": 3,
+        "body_fallback": false,
+        "abstract_only": true
+      }
+    },
+    {
+      "pin": "2301.00201v4",
+      "arxiv_id": "2301.00201",
+      "title": "Exploring Singularities in point clouds with the graph Laplacian: An explicit approach",
+      "abstract": "We develop theory and methods that use the graph Laplacian to analyze the geometry of the underlying manifold of datasets. Our theory provides theoretical guarantees and explicit bounds on the functional forms of the graph Laplacian when it acts on functions defined close to singularities of the underlying manifold. We use these explicit bounds to develop tests for singularities and propose methods that can be used to estimate geometric properties of singularities in the datasets.",
+      "authors": [
+        "Martin Andersson",
+        "Benny Avelin"
+      ],
+      "categories": [
+        "stat.ML",
+        "cs.LG",
+        "math.DG"
+      ],
+      "primary_category": "stat.ML",
+      "published_at": "2022-12-31T13:48:42Z",
+      "pdf_sha256": "2561d1d2313d46abcf4a130d184a3944e9e154acd8029b5e2abe96aa9f834eea",
+      "pdf_bytes": 3934092,
+      "parse_quality": {
+        "section_count": 3,
+        "chars_per_section": {
+          "introduction": 8000,
+          "results": 8000,
+          "abstract": 485
+        },
+        "total_chars": 16485,
+        "chunk_count": 35,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2401.00593v2",
+      "arxiv_id": "2401.00593",
+      "title": "Simplicity bias, algorithmic probability, and the random logistic map",
+      "abstract": "Simplicity bias is an intriguing phenomenon prevalent in various input-output maps, characterized by a preference for simpler, more regular, or symmetric outputs. Notably, these maps typically feature high-probability outputs with simple patterns, whereas complex patterns are exponentially less probable. This bias has been extensively examined and attributed to principles derived from algorithmic information theory and algorithmic probability. In a significant advancement, it has been demonstrated that the renowned logistic map and other one-dimensional maps exhibit simplicity bias when conceptualized as input-output systems. Building upon this work, our research delves into the manifestations of simplicity bias within the random logistic map, specifically focusing on scenarios involving additive noise. We discover that simplicity bias is observable in the random logistic map for specific ranges of $\u03bc$ and noise magnitudes. Additionally, we find that this bias persists even with the introduction of small measurement noise, though it diminishes as noise levels increase. Our studies also revisit the phenomenon of noise-induced chaos, particularly when $\u03bc=3.83$, revealing its characteristics through complexity-probability plots. Intriguingly, we employ the logistic map to illustrate a paradoxical aspect of data analysis: more data adhering to a consistent trend can occasionally lead to \\emph{reduced} confidence in extrapolation predictions, challenging conventional wisdom. We propose that adopting a probability-complexity perspective in analyzing dynamical systems could significantly enrich statistical learning theories related to series prediction and analysis. This approach not only facilitates a deeper understanding of simplicity bias and its implications but also paves the way for novel methodologies in forecasting complex systems behavior.",
+      "authors": [
+        "Boumediene Hamzi",
+        "Kamaludin Dingle"
+      ],
+      "categories": [
+        "cs.IT",
+        "math.DS",
+        "nlin.CD",
+        "stat.ML"
+      ],
+      "primary_category": "cs.IT",
+      "published_at": "2023-12-31T22:08:34Z",
+      "pdf_sha256": "b842c2c2e6a9c777b00d5fae775092c8e6914fb08c8fa23e7daf131a7e26fc21",
+      "pdf_bytes": 668661,
+      "parse_quality": {
+        "section_count": 5,
+        "chars_per_section": {
+          "introduction": 8000,
+          "results": 8000,
+          "discussion": 5145,
+          "conclusion": 1876,
+          "abstract": 1873
+        },
+        "total_chars": 24894,
+        "chunk_count": 45,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2401.00490v2",
+      "arxiv_id": "2401.00490",
+      "title": "Kernel Density Estimation for Multiclass Quantification",
+      "abstract": "Several disciplines, like the social sciences, epidemiology, sentiment analysis, or market research, are interested in knowing the distribution of the classes in a population rather than the individual labels of the members thereof. Quantification is the supervised machine learning task concerned with obtaining accurate predictors of class prevalence, and to do so particularly in the presence of label shift. The distribution-matching (DM) approaches represent one of the most important families among the quantification methods that have been proposed in the literature so far. Current DM approaches model the involved populations by means of histograms of posterior probabilities. In this paper, we argue that their application to the multiclass setting is suboptimal since the histograms become class-specific, thus missing the opportunity to model inter-class information that may exist in the data. We propose a new representation mechanism based on multivariate densities that we model via kernel density estimation (KDE). The experiments we have carried out show our method, dubbed KDEy, yields superior quantification performance with respect to previous DM approaches. We also investigate the KDE-based representation within the maximum likelihood framework and show KDEy often shows superior performance with respect to the expectation-maximization method for quantification, arguably the strongest contender in the quantification arena to date.",
+      "authors": [
+        "Alejandro Moreo",
+        "Pablo Gonz\u00e1lez",
+        "Juan Jos\u00e9 del Coz"
+      ],
+      "categories": [
+        "cs.LG",
+        "stat.ML"
+      ],
+      "primary_category": "cs.LG",
+      "published_at": "2023-12-31T13:19:27Z",
+      "pdf_sha256": "064388722f1396515cb3fc0c7b19d67ca33a5cf2d3a8911b1da5c66a7c8e9a40",
+      "pdf_bytes": 2350281,
+      "parse_quality": {
+        "section_count": 7,
+        "chars_per_section": {
+          "abstract": 1566,
+          "introduction": 7326,
+          "background": 8000,
+          "methods": 8000,
+          "experiments": 8000,
+          "results": 8000,
+          "conclusion": 3235
+        },
+        "total_chars": 44127,
+        "chunk_count": 85,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2501.00664v3",
+      "arxiv_id": "2501.00664",
+      "title": "Grade Inflation in Generative Models",
+      "abstract": "Generative models hold great potential, but only if one can trust the evaluation of the data they generate. We show that many commonly used quality scores for comparing two-dimensional distributions of synthetic vs. ground-truth data give better results than they should, a phenomenon we call the \"grade inflation problem.\" We show that the correlation score, Jaccard score, earth-mover's score, and Kullback-Leibler (relative-entropy) score all suffer grade inflation. We propose that any score that values all datapoints equally, as these do, will also exhibit grade inflation; we refer to such scores as \"equipoint\" scores. We introduce the concept of \"equidensity\" scores, and present the Eden score, to our knowledge the first example of such a score. We found that Eden avoids grade inflation and agrees better with human perception of goodness-of-fit than the equipoint scores above. We propose that any reasonable equidensity score will avoid grade inflation. We identify a connection between equidensity scores and R\u00e9nyi entropy of negative order. We conclude that equidensity scores are likely to outperform equipoint scores for generative models, and for comparing low-dimensional distributions more generally.",
+      "authors": [
+        "Phuc Nguyen",
+        "Miao Li",
+        "Alexandra Morgan",
+        "Rima Arnaout",
+        "Ramy Arnaout"
+      ],
+      "categories": [
+        "cs.AI",
+        "cs.LG",
+        "stat.ML"
+      ],
+      "primary_category": "cs.AI",
+      "published_at": "2024-12-31T22:34:54Z",
+      "pdf_sha256": "fe17cabf6cab335bdf39abf0bbfeb1559a92a8a35e2fee0826587f71f62eb2f2",
+      "pdf_bytes": 2128357,
+      "parse_quality": {
+        "section_count": 4,
+        "chars_per_section": {
+          "methods": 348,
+          "results": 1141,
+          "discussion": 292,
+          "abstract": 1221
+        },
+        "total_chars": 3002,
+        "chunk_count": 8,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2501.00632v1",
+      "arxiv_id": "2501.00632",
+      "title": "Different thresholding methods on Nearest Shrunken Centroid algorithm",
+      "abstract": "This article considers the impact of different thresholding methods to the Nearest Shrunken Centroid algorithm, which is popularly referred as the Prediction Analysis of Microarrays (PAM) for high-dimensional classification. PAM uses soft thresholding to achieve high computational efficiency and high classification accuracy but in the price of retaining too many features. When applied to microarray human cancers, PAM selected 2611 features on average from 10 multi-class datasets. Such a large number of features make it difficult to perform follow up study. One reason behind this problem is the soft thresholding, which is known to produce biased parameter estimate in regression analysis. In this article, we extend the PAM algorithm with two other thresholding methods, hard and order thresholding, and a deep search algorithm to achieve better thresholding parameter estimate. The modified algorithms are extensively tested and compared to the original one based on real data and Monte Carlo studies. In general, the modification not only gave better cancer status prediction accuracy, but also resulted in more parsimonious models with significantly smaller number of features.",
+      "authors": [
+        "Mohammad Omar Sahtout",
+        "Haiyan Wang",
+        "Santosh Ghimire"
+      ],
+      "categories": [
+        "stat.ML",
+        "cs.LG"
+      ],
+      "primary_category": "stat.ML",
+      "published_at": "2024-12-31T20:13:43Z",
+      "pdf_sha256": "60b501c486f36e9e2fd3866a9e5cdfb455f118c276bfeaf5995d015fe1998594",
+      "pdf_bytes": 923387,
+      "parse_quality": {
+        "section_count": 4,
+        "chars_per_section": {
+          "introduction": 8000,
+          "results": 8000,
+          "discussion": 8000,
+          "abstract": 1187
+        },
+        "total_chars": 25187,
+        "chunk_count": 49,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2601.00904v1",
+      "arxiv_id": "2601.00904",
+      "title": "Deep Deterministic Nonlinear ICA via Total Correlation Minimization with Matrix-Based Entropy Functional",
+      "abstract": "Blind source separation, particularly through independent component analysis (ICA), is widely utilized across various signal processing domains for disentangling underlying components from observed mixed signals, owing to its fully data-driven nature that minimizes reliance on prior assumptions. However, conventional ICA methods rely on an assumption of linear mixing, limiting their ability to capture complex nonlinear relationships and to maintain robustness in noisy environments. In this work, we present deep deterministic nonlinear independent component analysis (DDICA), a novel deep neural network-based framework designed to address these limitations. DDICA leverages a matrix-based entropy function to directly optimize the independence criterion via stochastic gradient descent, bypassing the need for variational approximations or adversarial schemes. This results in a streamlined training process and improved resilience to noise. We validated the effectiveness and generalizability of DDICA across a range of applications, including simulated signal mixtures, hyperspectral image unmixing, modeling of primary visual receptive fields, and resting-state functional magnetic resonance imaging (fMRI) data analysis. Experimental results demonstrate that DDICA effectively separates independent components with high accuracy across a range of applications. These findings suggest that DDICA offers a robust and versatile solution for blind source separation in diverse signal processing tasks.",
+      "authors": [
+        "Qiang Li",
+        "Shujian Yu",
+        "Liang Ma",
+        "Chen Ma",
+        "Jingyu Liu",
+        "Tulay Adali",
+        "Vince D. Calhoun"
+      ],
+      "categories": [
+        "stat.ME",
+        "cs.LG",
+        "stat.ML"
+      ],
+      "primary_category": "stat.ME",
+      "published_at": "2025-12-31T19:44:19Z",
+      "pdf_sha256": "e924594a8c66407d26c3b2ac24762f0a5f14f1edcce1c1001d13ae7ba468b6b8",
+      "pdf_bytes": 4949740,
+      "parse_quality": {
+        "section_count": 7,
+        "chars_per_section": {
+          "abstract": 1659,
+          "introduction": 3530,
+          "background": 3803,
+          "methods": 8000,
+          "results": 8000,
+          "discussion": 6605,
+          "conclusion": 8000
+        },
+        "total_chars": 39597,
+        "chunk_count": 71,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2512.25017v2",
+      "arxiv_id": "2512.25017",
+      "title": "Convergence of the generalization error for deep gradient flow methods for PDEs",
+      "abstract": "The aim of this article is to provide a firm mathematical foundation for the application of deep gradient flow methods (DGFMs) for the solution of (high-dimensional) partial differential equations (PDEs). We decompose the generalization error of DGFMs into an approximation and a training error. We first show that the solution of PDEs that satisfy reasonable and verifiable assumptions can be approximated by neural networks, thus the approximation error tends to zero as the number of neurons tends to infinity. Then, we derive the gradient flow that the training process follows in the ``wide network limit'' and analyze the limit of this flow as the training time tends to infinity. These results combined show that the generalization error of DGFMs tends to zero as the number of neurons and the training time tend to infinity.",
+      "authors": [
+        "Chenguang Liu",
+        "Antonis Papapantoleon",
+        "Jasper Rou"
+      ],
+      "categories": [
+        "math.NA",
+        "cs.LG",
+        "q-fin.CP",
+        "stat.ML"
+      ],
+      "primary_category": "math.NA",
+      "published_at": "2025-12-31T18:11:51Z",
+      "pdf_sha256": "3b4e0f73b8874e66889fedc3751b20e4066ce55f14bcbdc17a80802877d35fbc",
+      "pdf_bytes": 478686,
+      "parse_quality": {
+        "section_count": 2,
+        "chars_per_section": {
+          "abstract": 832,
+          "body": 8000
+        },
+        "total_chars": 8832,
+        "chunk_count": 17,
+        "body_fallback": true,
+        "abstract_only": false
+      }
+    },
+    {
+      "pin": "2512.24999v1",
+      "arxiv_id": "2512.24999",
+      "title": "Basic Inequalities for First-Order Optimization with Applications to Statistical Risk Analysis",
+      "abstract": "We introduce \\textit{basic inequalities} for first-order iterative optimization algorithms, forming a simple and versatile framework that connects implicit and explicit regularization. While related inequalities appear in the literature, we isolate and highlight a specific form and develop it as a well-rounded tool for statistical analysis. Let $f$ denote the objective function to be optimized. Given a first-order iterative algorithm initialized at $\u03b8_0$ with current iterate $\u03b8_T$, the basic inequality upper bounds $f(\u03b8_T)-f(z)$ for any reference point $z$ in terms of the accumulated step sizes and the distances between $\u03b8_0$, $\u03b8_T$, and $z$. The bound translates the number of iterations into an effective regularization coefficient in the loss function. We demonstrate this framework through analyses of training dynamics and prediction risk bounds. In addition to revisiting and refining known results on gradient descent, we provide new results for mirror descent with Bregman divergence projection, for generalized linear models trained by gradient descent and exponentiated gradient descent, and for randomized predictors. We illustrate and supplement these theoretical findings with experiments on generalized linear models.",
+      "authors": [
+        "Seunghoon Paik",
+        "Kangjie Zhou",
+        "Matus Telgarsky",
+        "Ryan J. Tibshirani"
+      ],
+      "categories": [
+        "math.ST",
+        "cs.LG",
+        "math.NA",
+        "math.OC",
+        "stat.ML"
+      ],
+      "primary_category": "math.ST",
+      "published_at": "2025-12-31T17:49:37Z",
+      "pdf_sha256": "2999fc8aa1e8d2d0a8aebcb0547c498b5d11630a22b51d623ecacecdf43e25d8",
+      "pdf_bytes": 1440573,
+      "parse_quality": {
+        "section_count": 5,
+        "chars_per_section": {
+          "abstract": 1215,
+          "introduction": 4841,
+          "background": 8000,
+          "experiments": 8000,
+          "discussion": 1634
+        },
+        "total_chars": 23690,
+        "chunk_count": 44,
+        "body_fallback": false,
+        "abstract_only": false
+      }
+    }
+  ]
+}

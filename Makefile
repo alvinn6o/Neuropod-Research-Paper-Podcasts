@@ -1,4 +1,4 @@
-.PHONY: help install dev worker test test-pg typecheck build clean reset eval dedupe deps-audit
+.PHONY: help install dev worker test test-pg typecheck build clean reset eval eval-judge corpus dedupe deps-audit
 
 help:
 	@echo "Targets:"
@@ -11,7 +11,9 @@ help:
 	@echo "  typecheck   run frontend tsc --noEmit"
 	@echo "  build       build both Docker images"
 	@echo "  reset       wipe local SQLite + audio cache"
-	@echo "  eval        run LLM-as-judge eval (costs API credits, requires OPENAI_API_KEY)"
+	@echo "  eval        retrieval ablation over the frozen corpus (free, deterministic)"
+	@echo "  eval-judge  LLM-as-judge eval (costs API credits, requires OPENAI_API_KEY)"
+	@echo "  corpus      rebuild the frozen eval corpus (fetches PDFs from arXiv)"
 	@echo "  dedupe      remove duplicate episodes per (user_id, paper_id)"
 
 install:
@@ -55,7 +57,14 @@ reset:
 	rm -f data/audio_cache/*.bin data/audio_cache/*.meta
 
 eval:
+	python -m eval.harness
+
+eval-judge:
 	python -m eval.ragas_eval
+
+corpus:
+	python -m eval.corpus_build build
+	python -m eval.queries --mode ict
 
 dedupe:
 	python scripts/dedupe_episodes.py

@@ -59,7 +59,7 @@ jobs:
   retrieval-benchmark:
     # Retrieval metrics printed into the job summary on every PR, so a
     # regression is visible in the diff rather than found later.
-    name: retrieval benchmark
+    name: retrieval ablation + gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,16 +70,29 @@ jobs:
       - run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-      - name: Recall benchmark
+      - name: Retrieval ablation + regression gate
         env:
           NEUROPOD_AUTH_MODE: stub
         run: |
           {
-            echo '### Retrieval benchmark'
+            echo '### Retrieval ablation (42-paper frozen corpus, 472 ICT queries)'
+            echo '```'
+            python -m eval.harness 2>&1 | sed -n '/^Corpus:/,$p'
+            echo '```'
+            echo '### Regression gate'
+            echo '```'
+            pytest tests/test_eval_harness.py -q -s --no-header -k regressed 2>&1 | sed -n '/nDCG@10/,$p'
+            echo '```'
+            echo '### Legacy single-paper fixture (kept for continuity)'
             echo '```'
             pytest tests/test_recall.py -q -s --no-header 2>&1 | sed -n '/recall@/,$p'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail the build on retrieval regression
+        env:
+          NEUROPOD_AUTH_MODE: stub
+        run: pytest tests/test_eval_harness.py -q -k regressed
 
   frontend:
     name: frontend
