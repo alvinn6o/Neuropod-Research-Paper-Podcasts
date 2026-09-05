@@ -1,0 +1,166 @@
+"""Task A: paper recommendation labels, pooling, and baselines.
+
+Task A ranks *papers* (which become episodes); Task B ranks *chunks* (which
+reach the prompt). Different unit, different labels, different baseline — the
+tests are kept apart for the same reason.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+POOLS = ROOT / "eval" / "corpus" / "topic_pools.json"
+QRELS_LLM = ROOT / "eval" / "corpus" / "topic_qrels_llm.json"
+QRELS = ROOT / "eval" / "corpus" / "topic_qrels.json"
+
+needs_labels = pytest.mark.skipif(
+    not (POOLS.exists() and QRELS.exists()),
+    reason="topic labels not built (python -m eval.topics; eval.annotate ingest)",
+)
+
+
+# ---------------------------------------------------------------------------
+# Cohen's kappa
+# ---------------------------------------------------------------------------
+
+def test_kappa_is_1_for_identical_and_0_for_chance():
+    from eval.annotate import cohens_kappa
+
+    assert cohens_kappa([0, 1, 2, 0, 1], [0, 1, 2, 0, 1]) == 1.0
+    assert cohens_kappa([0, 0, 0, 0, 1, 1, 1, 1], [0, 1, 0, 1, 0, 1, 0, 1]) == pytest.approx(0.0)
+
+
+def test_kappa_punishes_agreement_that_is_just_a_common_label():
+    """The reason kappa exists. Two annotators who both mostly say 0 agree often
+    while sharing little actual judgment; raw agreement cannot tell the
+    difference and kappa can."""
+    from eval.annotate import cohens_kappa
+
+    a = [0] * 8 + [1, 2]
+    b = [0] * 8 + [2, 1]
+    raw = sum(x == y for x, y in zip(a, b)) / len(a)
+    assert raw == 0.8
+    assert cohens_kappa(a, b) < 0.5
+
+
+# ---------------------------------------------------------------------------
+# Pooling
+# ---------------------------------------------------------------------------
+
+@needs_labels
+def test_pool_has_a_random_arm_that_finds_positives_tfidf_misses():
+    """Pooling's whole purpose, asserted.
+
+    Labelling only what the current system already surfaces makes its misses
+    invisible — anything it never retrieves is never judged, so it cannot be
+    scored against. The random arm is what makes the benchmark able to say the
+    baseline was wrong.
+    """
+    from eval.topics import TOP_K, TOPICS, TfIdf, load_papers
+
+    pools = json.loads(POOLS.read_text())["pools"]
+    labels = json.loads(QRELS.read_text())
+    papers = load_papers()
+    tfidf = TfIdf([p.text for p in papers])
+
+    found_outside_tfidf = 0
+    for topic, description in TOPICS.items():
+        scores = tfidf.query(description)
+        ranked = sorted(range(len(papers)), key=lambda i: -scores[i])
+        top_ids = {papers[i].arxiv_id for i in ranked[:TOP_K]}
+        for pid in set(pools[topic]) - top_ids:
+            if labels[topic].get(pid, 0) >= 1:
+                found_outside_tfidf += 1
+
+    assert found_outside_tfidf >= 10, (
+        f"only {found_outside_tfidf} positives came from the random arm — the pool "
+        "may be too TF-IDF-shaped to detect its misses"
+    )
+
+
+@needs_labels
+def test_every_pooled_paper_is_labelled_exactly_once():
+    pools = json.loads(POOLS.read_text())["pools"]
+    labels = json.loads(QRELS.read_text())
+    for topic, pool in pools.items():
+        assert set(labels[topic]) == set(pool), f"{topic}: label set != pool"
+
+
+@needs_labels
+def test_labels_are_graded_and_not_degenerate():
+    """A label set that is 95% one class measures almost nothing."""
+    from collections import Counter
+
+    labels = json.loads(QRELS.read_text())
+    for topic, judgments in labels.items():
+        dist = Counter(judgments.values())
+        assert set(dist) <= {0, 1, 2}
+        positive_rate = (dist[1] + dist[2]) / len(judgments)
+        assert 0.10 < positive_rate < 0.90, (
+            f"{topic}: positive rate {positive_rate:.0%} is too skewed to be informative"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Baselines
+# ---------------------------------------------------------------------------
+
+@needs_labels
+def test_baselines_beat_random_and_the_heuristic_is_not_just_recency():
+    """Two claims at once.
+
+    The first is a sanity floor. The second corrects an assumption: the
+    production heuristic weights recency at 0.45, so it *looks* like a date
+    sort — but ranking by date alone scores far worse, because the 0.20
+    affinity term is carrying it.
+    """
+    from eval.metrics import ndcg_at_k
+    from eval.recommend import rank_production, rank_random, rank_recency
+    from eval.topics import TOPICS, load_papers
+
+    qrels = json.loads(QRELS.read_text())
+    papers = load_papers()
+
+    def mean_ndcg(fn):
+        return sum(
+            ndcg_at_k(fn(papers, desc), qrels[topic], 5) for topic, desc in TOPICS.items()
+        ) / len(TOPICS)
+
+    production = mean_ndcg(rank_production)
+    recency = mean_ndcg(rank_recency)
+    random_ = mean_ndcg(lambda ps, d: rank_random(ps, d))
+
+    assert production > random_ * 2, "the heuristic must clearly beat random"
+    assert production > recency + 0.2, (
+        f"production ({production:.3f}) is barely above recency-only ({recency:.3f}); "
+        "the affinity term should be doing the work"
+    )
+
+
+@needs_labels
+def test_recency_term_is_inert_on_this_corpus():
+    """A stated limitation, pinned by a test so it cannot be forgotten.
+
+    Production ranks a 7-day discovery window; this corpus spans years. With a
+    3.5-day half-life, exp(-age/half_life) underflows to ~0 for every paper, so
+    0.45 of the heuristic's weight multiplies a constant here. Any conclusion
+    about the recency term from this corpus is out of distribution.
+    """
+    import math
+    from datetime import datetime, timezone
+
+    from eval.topics import load_papers
+
+    now = datetime.now(timezone.utc)
+    ages = [
+        (now - datetime.fromisoformat(p.published_at.replace("Z", "+00:00"))).days
+        for p in load_papers()
+    ]
+    largest = math.exp(-min(ages) / 3.5)
+    assert largest < 1e-20, (
+        "corpus is now fresh enough for the recency term to vary — the caveat in "
+        "eval/recommend.py should be revisited"
+    )

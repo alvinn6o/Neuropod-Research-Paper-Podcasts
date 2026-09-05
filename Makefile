@@ -1,4 +1,4 @@
-.PHONY: help install dev worker test test-pg typecheck build clean reset eval eval-judge corpus reranker dedupe deps-audit
+.PHONY: help install dev worker test test-pg typecheck build clean reset eval eval-judge corpus reranker recommend annotate dedupe deps-audit
 
 help:
 	@echo "Targets:"
@@ -15,6 +15,8 @@ help:
 	@echo "  eval-judge  LLM-as-judge eval (costs API credits, requires OPENAI_API_KEY)"
 	@echo "  corpus      rebuild the frozen eval corpus (fetches PDFs from arXiv)"
 	@echo "  reranker    train + evaluate the learned reranker on held-out papers"
+	@echo "  recommend   Task A: paper-recommendation baselines vs labels"
+	@echo "  annotate    human spot-check of the LLM relevance labels"
 	@echo "  dedupe      remove duplicate episodes per (user_id, paper_id)"
 
 install:
@@ -69,6 +71,18 @@ corpus:
 
 reranker:
 	python -m eval.train_reranker
+
+# Task A: which papers should become episodes (vs Task B: which chunks reach
+# the prompt). Different unit, different labels, different baseline.
+recommend:
+	python -m eval.recommend
+
+# Human spot-check of the LLM labels. Reports Cohen's kappa afterwards; below
+# ~0.6 the label definition is the problem, not the model.
+annotate:
+	@if [ -z "$(TOPIC)" ]; then echo "TOPIC=llm|vision|rl|graph|theory required"; exit 1; fi
+	python -m eval.annotate review --topic $(TOPIC) --n $(or $(N),20)
+	python -m eval.annotate agreement
 
 dedupe:
 	python scripts/dedupe_episodes.py
