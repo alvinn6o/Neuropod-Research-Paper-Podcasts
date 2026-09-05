@@ -346,6 +346,13 @@ def main() -> None:
         "n_train_queries": len(dev_rows),
         "n_train_papers": len(papers) - n_hold,
     }, indent=2))
+    # Serialize the selected model for the serving path. LightGBM's own text
+    # format, so loading needs no pickle and no version-matched sklearn.
+    if "lambdamart_obj" in extra:
+        lgbm_path = ROOT / "eval" / "reranker_lgbm.txt"
+        extra["lambdamart_obj"].booster_.save_model(str(lgbm_path))
+        print(f"lambdamart -> {lgbm_path}")
+
     RESULTS_PATH.write_text(json.dumps(results, indent=2))
     print(f"\nmodel  -> {MODEL_PATH}")
     print(f"results-> {RESULTS_PATH}")

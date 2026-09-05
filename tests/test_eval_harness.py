@@ -148,7 +148,7 @@ def test_rrf_rewards_agreement_across_rankings():
 # ---------------------------------------------------------------------------
 
 @needs_corpus
-@pytest.mark.parametrize("config", ["current", "bm25", "dense"])
+@pytest.mark.parametrize("config", ["shipped", "legacy", "bm25"])
 def test_retrieval_has_not_regressed(config):
     """Fail if nDCG@10 drops more than `tolerance` below the frozen baseline.
 
@@ -352,3 +352,131 @@ def test_lightgbm_absence_degrades_instead_of_crashing(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
     assert train_reranker._lightgbm() is None
+
+
+# ---------------------------------------------------------------------------
+# Shipped retriever behaviour (items #1 and #2)
+# ---------------------------------------------------------------------------
+
+def test_facet_queries_do_not_contain_paper_topic_terms():
+    """Retrieval is scoped to one paper, so every candidate is already on-topic.
+
+    Topical terms therefore carry no discriminating signal between chunks and
+    would only dilute the facet cue. The queries exist to separate *sections of
+    one paper*, not to find the paper.
+    """
+    from pipeline.generate.facets import build_facet_queries
+
+    title, abstract = "Mamba: Linear-Time Sequence Modeling", "We introduce selective state spaces."
+    queries = build_facet_queries(title, abstract)
+    assert len(queries) == 4
+    joined = " ".join(queries).lower()
+    for term in ("mamba", "selective", "state spaces"):
+        assert term not in joined
+
+
+def test_zero_scoring_chunks_do_not_earn_fusion_credit():
+    """RRF scores by rank, so a chunk that matched nothing must not be ranked.
+
+    Otherwise a query with no lexical hits still produces a full ranking and the
+    fused order is arbitrary.
+    """
+    from pipeline.generate.retriever import Retriever
+
+    chunks = [
+        {"id": "match", "section": "results", "content": "throughput on A100 gpus", "chunk_index": 0},
+        {"id": "nomatch", "section": "methods", "content": "entirely unrelated prose", "chunk_index": 1},
+    ]
+    scored = Retriever().retrieve_scored(chunks, "throughput A100", limit=2)
+    assert scored[0]["chunk"]["id"] == "match"
+    assert scored[0]["final_score"] > 0.0
+    assert scored[1]["final_score"] == 0.0
+
+
+def test_ranking_is_invariant_to_input_order():
+    """Tie-aware ranks make fusion independent of how the caller ordered chunks.
+
+    Without averaged ranks for ties, two identically-scoring chunks are split by
+    sort order, so the final ranking depends on input order rather than data.
+    """
+    from pipeline.generate.retriever import Retriever
+
+    chunks = [
+        {"id": "a", "section": "results", "content": "language models are widely studied", "chunk_index": 0},
+        {"id": "b", "section": "introduction", "content": "language models are widely studied", "chunk_index": 1},
+    ]
+    forward = Retriever().retrieve_scored(chunks, "language models", limit=2)
+    backward = Retriever().retrieve_scored(list(reversed(chunks)), "language models", limit=2)
+    assert [r["final_score"] for r in forward] == [r["final_score"] for r in backward]
+
+
+def test_reranker_is_off_unless_explicitly_enabled(monkeypatch):
+    """A serving path that changes behaviour based on which files happen to
+    exist is worse than one that requires an explicit switch."""
+    from pipeline.generate.retriever import Retriever
+
+    monkeypatch.delenv("NEUROPOD_RERANKER", raising=False)
+    r = Retriever()
+    assert r._load_reranker() is None
+
+
+def test_missing_reranker_model_does_not_break_retrieval(monkeypatch, tmp_path):
+    from pipeline.generate import rerank
+    from pipeline.generate.retriever import Retriever
+
+    monkeypatch.setenv("NEUROPOD_RERANKER", "on")
+    monkeypatch.setattr(rerank, "LGBM_PATH", tmp_path / "absent.txt")
+    monkeypatch.setattr(rerank, "LINEAR_PATH", tmp_path / "absent.json")
+
+    chunks = [
+        {"id": "a", "section": "results", "content": "alpha beta gamma", "chunk_index": 0},
+        {"id": "b", "section": "methods", "content": "delta epsilon", "chunk_index": 1},
+    ]
+    out = Retriever().retrieve_scored(chunks, "alpha", limit=2)
+    assert [r["chunk"]["id"] for r in out] == ["a", "b"]
+
+
+@needs_corpus
+def test_facet_queries_improve_section_coverage():
+    """The production-query change, measured.
+
+    The ICT benchmark cannot evaluate this: it supplies its own queries and so
+    never exercises the query the pipeline actually sends. Coverage does.
+    """
+    import json as _json
+    from collections import defaultdict
+
+    from eval import queries as q_mod
+    from eval.coverage import coverage_for
+    from pipeline.generate.embedder import HashEmbedder
+    from pipeline.generate.facets import build_facet_queries
+    from pipeline.generate.retriever import PROMPT_CHUNK_LIMIT, Retriever
+
+    manifest = {
+        p["arxiv_id"]: p
+        for p in _json.loads((ROOT / "eval" / "corpus" / "manifest.json").read_text())["papers"]
+    }
+    by_paper = defaultdict(list)
+    for c in q_mod.load_chunks():
+        by_paper[c["paper_id"]].append(c)
+
+    emb = HashEmbedder()
+    retriever = Retriever(embedder=emb)
+    old_scores, new_scores = [], []
+    for paper_id, chunks in sorted(by_paper.items())[:40]:
+        meta = manifest.get(paper_id, {})
+        for c in chunks:
+            c["embedding"] = emb.embed_text(c["content"])
+            c["embedding_model"] = emb.model_id
+        available = {c["section"] for c in chunks}
+        for store, qs in (
+            (old_scores, [f"{meta.get('title','')} {meta.get('abstract','')}"]),
+            (new_scores, build_facet_queries(meta.get("title", ""), meta.get("abstract", ""))),
+        ):
+            got = [r["chunk"] for r in retriever.retrieve_multi(chunks, qs, limit=PROMPT_CHUNK_LIMIT)]
+            store.append(coverage_for(got, available)[0])
+
+    old_mean = sum(old_scores) / len(old_scores)
+    new_mean = sum(new_scores) / len(new_scores)
+    print(f"\n  section coverage@14: title+abstract={old_mean:.3f} facets={new_mean:.3f}")
+    assert new_mean > old_mean, "facet queries must not reduce section coverage"

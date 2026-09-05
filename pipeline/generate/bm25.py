@@ -109,6 +109,38 @@ class BM25Index:
         return scored[:k]
 
 
+def tie_aware_ranks(scores: dict[str, float]) -> dict[str, float]:
+    """1-based ranks, with tied scores sharing their average rank.
+
+    Rank-based fusion consumes ranks, not scores, so equal scores would
+    otherwise be split by whatever order the sort happened to produce — making
+    the final ranking depend on input order rather than on the data. Averaging
+    tied ranks ("competition ranking") removes that: two chunks with identical
+    text now provably score identically, which is a property a test can assert.
+    """
+    ordered = sorted(scores.items(), key=lambda kv: -kv[1])
+    ranks: dict[str, float] = {}
+    i = 0
+    while i < len(ordered):
+        j = i
+        while j + 1 < len(ordered) and ordered[j + 1][1] == ordered[i][1]:
+            j += 1
+        average = (i + 1 + j + 1) / 2.0     # 1-based, inclusive
+        for cid, _ in ordered[i : j + 1]:
+            ranks[cid] = average
+        i = j + 1
+    return ranks
+
+
+def fuse_rank_maps(rank_maps: list[dict[str, float]], *, k: int = 60) -> dict[str, float]:
+    """RRF over pre-computed (possibly tie-aware) rank maps."""
+    fused: dict[str, float] = {}
+    for ranks in rank_maps:
+        for doc_id, rank in ranks.items():
+            fused[doc_id] = fused.get(doc_id, 0.0) + 1.0 / (k + rank)
+    return fused
+
+
 def reciprocal_rank_fusion(
     rankings: list[list[str]], *, k: int = 60
 ) -> list[tuple[str, float]]:

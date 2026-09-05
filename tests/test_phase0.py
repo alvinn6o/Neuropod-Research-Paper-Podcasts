@@ -170,15 +170,27 @@ def test_usage_collection_is_scoped_to_its_context():
 
 
 def test_retriever_exposes_score_components_for_traces():
+    """Traces must carry the components, not just the final order.
+
+    These are the features a learned reranker trains on, and they answer "what
+    put this chunk on top?". `final_score` is now the RRF fusion score rather
+    than a sum of components, so it is checked for ordering rather than
+    arithmetic identity.
+    """
     chunks = [
-        {"id": "a", "section": "results", "content": "we observe 24 percent improvement"},
-        {"id": "b", "section": "introduction", "content": "language models are studied"},
+        {"id": "a", "section": "results", "content": "we observe 24 percent improvement",
+         "chunk_index": 0},
+        {"id": "b", "section": "introduction", "content": "language models are studied",
+         "chunk_index": 1},
     ]
     scored = Retriever().retrieve_scored(chunks, "what improvement?", limit=2)
     assert [r["rank"] for r in scored] == [0, 1]
+    assert scored[0]["chunk"]["id"] == "a", "the lexically matching chunk must win"
     for row in scored:
-        assert row["section_bonus"] is not None
-        assert row["final_score"] == pytest.approx(row["sparse_score"] + row["section_bonus"])
+        assert row["sparse_score"] is not None
+        assert row["section_bonus"] == 0.0
+        assert row["final_score"] >= 0.0
+    assert scored[0]["final_score"] > scored[1]["final_score"]
 
 
 def test_pipeline_persists_retrieval_traces(client, auth_headers):

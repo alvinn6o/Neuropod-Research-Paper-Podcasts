@@ -56,18 +56,57 @@ def _dense_scores(chunks: list[dict], query: str, embedder: HashEmbedder) -> dic
     return out
 
 
-def config_current(chunks, query, embedder):
-    """The shipping retriever: raw term-frequency cosine + additive section prior."""
-    return [r["chunk"]["id"] for r in Retriever().retrieve_scored(chunks, query, limit=TOP_N)]
+def config_legacy(chunks, query, embedder):
+    """The retriever as it shipped before this change, frozen as a reference.
+
+    Raw term-frequency cosine plus the hand-set additive section prior. Kept as
+    a literal reimplementation rather than by calling `Retriever`, so the
+    historical number stays reproducible after the production code moves on.
+    """
+    from collections import Counter
+    from math import sqrt
+
+    def vec(text):
+        return Counter(t for t in "".join(
+            ch.lower() if ch.isalnum() else " " for ch in text).split() if len(t) > 2)
+
+    def cos(a, b):
+        if not a or not b:
+            return 0.0
+        num = sum(a[t] * b[t] for t in set(a) & set(b))
+        na = sqrt(sum(v * v for v in a.values()))
+        nb = sqrt(sum(v * v for v in b.values()))
+        return num / (na * nb) if na and nb else 0.0
+
+    qv = vec(query)
+    scored = [
+        (cos(qv, vec(c["content"])) + Retriever.section_bonus.get(c["section"], 0.0), c["id"])
+        for c in chunks
+    ]
+    return [cid for _, cid in sorted(scored, key=lambda kv: -kv[0])[:TOP_N]]
+
+
+def config_shipped(chunks, query, embedder):
+    """Whatever `Retriever` does today. This is the config the CI gate protects."""
+    for c in chunks:
+        c["embedding"] = c.get("_emb") or []
+    r = Retriever(embedder=embedder)
+    return [row["chunk"]["id"] for row in r.retrieve_scored(chunks, query, limit=TOP_N)]
 
 
 def config_dense_prior(chunks, query, embedder):
-    """Shipping dense path: hash-embedding cosine + the same additive prior."""
-    r = Retriever(embedder=embedder)
-    for c in chunks:
-        c["embedding"] = c.get("_emb") or []
-    scored = r.retrieve_scored(chunks, query, limit=TOP_N)
-    return [row["chunk"]["id"] for row in scored]
+    """Dense cosine + the hand-set additive prior, frozen as a reference.
+
+    Computed directly rather than via `Retriever` — the production retriever no
+    longer applies the prior, so calling it here would silently measure the
+    shipped config twice and make the comparison vacuous.
+    """
+    scores = _dense_scores(chunks, query, embedder)
+    ranked = sorted(
+        chunks,
+        key=lambda c: -(scores[c["id"]] + Retriever.section_bonus.get(c["section"], 0.0)),
+    )
+    return [c["id"] for c in ranked[:TOP_N]]
 
 
 def config_bm25(chunks, query, embedder):
@@ -109,7 +148,8 @@ def config_rrf_prior(chunks, query, embedder):
 
 
 CONFIGS: dict[str, Callable] = {
-    "current": config_current,
+    "legacy": config_legacy,
+    "shipped": config_shipped,
     "bm25": config_bm25,
     "dense": config_dense_only,
     "dense+prior": config_dense_prior,
@@ -215,7 +255,7 @@ def report(result: dict, baseline: str) -> dict:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--configs", nargs="*", default=list(CONFIGS))
-    ap.add_argument("--baseline", default="current")
+    ap.add_argument("--baseline", default="legacy")
     ap.add_argument("--json", default=str(RESULTS))
     args = ap.parse_args()
 

@@ -9,8 +9,9 @@ from .discover.arxiv_client import ArxivClient
 from .discover.ranker import rank_candidates
 from .discover.semantic_scholar import SemanticScholarClient
 from .generate.embedder import EmbeddingError, get_embedder
+from .generate.facets import build_facet_queries, facet_names
 from .generate.qa_check import QAChecker
-from .generate.retriever import RETRIEVER_VERSION, Retriever
+from .generate.retriever import PROMPT_CHUNK_LIMIT, RETRIEVER_VERSION, Retriever
 from .generate.scriptwriter import ScriptWriter
 from .ingest.chunker import SectionAwareChunker
 from .ingest.pdf_extractor import PDFExtractor
@@ -18,10 +19,6 @@ from .models import EpisodeDraft
 from .synthesize.audio_processor import AudioProcessor
 
 logger = logging.getLogger("neuropod.orchestrator")
-
-# How many retrieved chunks actually reach the prompt. Kept here rather than
-# buried in the scriptwriter so the trace can record which chunks were used.
-PROMPT_CHUNK_LIMIT = 14
 
 
 def build_demo_payload(
@@ -108,12 +105,18 @@ def build_demo_payload(
         chunk_dicts = [chunk.to_dict() for chunk in chunk_models]
         chunks.extend(chunk_dicts)
 
-        # NOTE: title+abstract is a weak query — it asks "find chunks like the
-        # abstract" against an index where the abstract section already carries
-        # a +0.18 prior. Replacing it with multi-facet queries is Phase 2.3;
-        # it is left alone here so the change can be measured, not guessed at.
-        query = f"{candidate.title} {candidate.abstract}"
-        scored = retriever.retrieve_scored(chunk_dicts, query, limit=10)
+        # One query per thing the prompt asks the model to cover, fused with
+        # RRF. Replaces `title + abstract`, which asked "find chunks like the
+        # summary of the whole paper" — diffuse by construction, and partly
+        # retrieving its own source since the abstract is in the index.
+        #
+        # Measured on 168 papers (eval/coverage.py): section coverage@14 goes
+        # 0.901 -> 0.946, CI [+0.021, +0.069], p<0.001. The gain is concentrated
+        # where it matters most — the results section reaches the prompt 94.2%
+        # of the time, up from 74.2%. A script cannot report quantitative
+        # results that were never retrieved.
+        facet_queries = build_facet_queries(candidate.title, candidate.abstract)
+        scored = retriever.retrieve_multi(chunk_dicts, facet_queries, limit=PROMPT_CHUNK_LIMIT)
         retrieved = [row["chunk"] for row in scored]
         script, llm_label = writer.write(candidate, retrieved, topics)
         qa_status, qa_notes = checker.verify(script, chunk_dicts)
@@ -121,7 +124,7 @@ def build_demo_payload(
         retrieval_trace = [
             {
                 "chunk_id": row["chunk"]["id"],
-                "query_text": query[:2000],
+                "query_text": " | ".join(facet_names())[:2000],
                 "retriever_version": RETRIEVER_VERSION,
                 "rank": row["rank"],
                 "dense_score": row["dense_score"],
