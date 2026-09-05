@@ -130,26 +130,58 @@ def cmd_review(args) -> None:
         return
 
     print(GUIDELINE)
-    print(f"TOPIC {topic}: {TOPICS[topic]}")
-    print("Enter 0/1/2, or blank to accept the LLM's grade. 'q' saves and quits.\n")
+    print("=" * 78)
+    print(f"TOPIC: {topic} — {TOPICS[topic]}")
+    print("=" * 78)
+    if args.show_llm:
+        print("\n!! --show-llm is ON. The LLM's grade is displayed BEFORE you answer,")
+        print("!! which anchors you and inflates agreement. Do not use this for kappa.\n")
+    else:
+        print("\nBlind: the LLM's grade is hidden until after you answer, so your")
+        print("judgment is independent. That is what makes kappa mean anything.\n")
+    print("Enter 0, 1 or 2.  's' skips this paper.  'q' saves and quits.\n")
 
     bucket = human.setdefault(topic, {})
-    for i, pid in enumerate(candidates[: args.n], start=1):
+    total = min(args.n, len(candidates))
+    agreed = 0
+    scored = 0
+    for i, pid in enumerate(candidates[:total], start=1):
         p = papers[pid]
         suggested = llm[topic][pid]
-        print(f"\n[{i}/{min(args.n, len(candidates))}] {pid} ({p.primary_category})")
-        print(f"  {p.title}")
-        print(f"  {' '.join(p.abstract.split())[:400]}")
-        print(f"  LLM says: {suggested}")
-        try:
-            raw = input("  grade > ").strip().lower()
-        except EOFError:
-            break
+        print("\n" + "-" * 78)
+        print(f"[{i}/{total}] {pid}   arXiv category: {p.primary_category}")
+        print(f"\n  {p.title}\n")
+        print(f"  {' '.join(p.abstract.split())[:args.chars]}")
+        if args.show_llm:
+            print(f"\n  (LLM said: {suggested})")
+        while True:
+            try:
+                raw = input("\n  your grade [0/1/2, s, q] > ").strip().lower()
+            except EOFError:
+                raw = "q"
+            if raw in {"0", "1", "2", "s", "q"}:
+                break
+            print("  -> enter 0, 1, 2, s or q")
         if raw == "q":
             break
-        bucket[pid] = suggested if raw == "" else int(raw)
+        if raw == "s":
+            continue
+        bucket[pid] = int(raw)
+        scored += 1
+        if int(raw) == suggested:
+            agreed += 1
+            print(f"  = LLM also said {suggested}")
+        else:
+            print(f"  x LLM said {suggested}, you said {raw}  <- disagreement, this is the signal")
+
     save_labels("human", human)
-    print(f"\nsaved {sum(len(v) for v in human.values())} human judgments")
+    print("\n" + "=" * 78)
+    print(f"saved {scored} judgments this session "
+          f"({sum(len(v) for v in human.values())} total across all topics)")
+    if scored:
+        print(f"raw agreement this session: {agreed}/{scored} = {agreed/scored:.0%}")
+        print("\nRaw agreement is NOT the number that matters — run `agreement` for kappa,")
+        print("which corrects for how often two annotators would agree by chance.")
     _rebuild_merged()
 
 
@@ -252,7 +284,13 @@ if __name__ == "__main__":
     sub = ap.add_subparsers(dest="cmd", required=True)
     w = sub.add_parser("worksheet"); w.add_argument("--topic"); w.add_argument("--limit", type=int, default=100); w.add_argument("--chars", type=int, default=700); w.set_defaults(fn=cmd_worksheet)
     i = sub.add_parser("ingest"); i.add_argument("path"); i.add_argument("--role", default="llm", choices=list(LABELS)); i.set_defaults(fn=cmd_ingest)
-    r = sub.add_parser("review"); r.add_argument("--topic", required=True); r.add_argument("--n", type=int, default=20); r.set_defaults(fn=cmd_review)
+    r = sub.add_parser("review")
+    r.add_argument("--topic", required=True, choices=list(TOPICS))
+    r.add_argument("--n", type=int, default=20)
+    r.add_argument("--chars", type=int, default=600)
+    r.add_argument("--show-llm", action="store_true",
+                   help="show the LLM grade BEFORE you answer (anchors you; not for kappa)")
+    r.set_defaults(fn=cmd_review)
     a = sub.add_parser("agreement"); a.add_argument("--against", default="human", choices=["human", "llm_pass2"]); a.set_defaults(fn=cmd_agreement)
     s = sub.add_parser("stats"); s.set_defaults(fn=cmd_stats)
     args = ap.parse_args()
