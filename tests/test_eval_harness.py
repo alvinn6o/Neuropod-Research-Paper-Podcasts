@@ -480,3 +480,51 @@ def test_facet_queries_improve_section_coverage():
     new_mean = sum(new_scores) / len(new_scores)
     print(f"\n  section coverage@14: title+abstract={old_mean:.3f} facets={new_mean:.3f}")
     assert new_mean > old_mean, "facet queries must not reduce section coverage"
+
+
+# ---------------------------------------------------------------------------
+# Cross-encoder harness
+# ---------------------------------------------------------------------------
+
+def test_cross_encoder_scoring_runs_without_a_downloaded_model():
+    """Exercises the plumbing with a locally-built tiny BERT.
+
+    The real model lives on HuggingFace, which is unreachable from CI and from
+    the dev sandbox (403). Rather than skip the code path entirely, this builds
+    a two-layer BERT from config — random weights, so the scores are
+    meaningless, but batching, truncation and logit extraction are real.
+    """
+    torch = pytest.importorskip("torch")
+    transformers = pytest.importorskip("transformers")
+
+    import tempfile
+    from pathlib import Path as _Path
+
+    from eval.cross_encoder import score_pairs
+
+    tmp = _Path(tempfile.mkdtemp())
+    vocab = ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"] + [f"tok{i}" for i in range(200)]
+    (tmp / "vocab.txt").write_text("\n".join(vocab))
+    tok = transformers.BertTokenizerFast(vocab_file=str(tmp / "vocab.txt"))
+
+    for num_labels in (1, 2):
+        cfg = transformers.BertConfig(
+            vocab_size=len(vocab), hidden_size=32, num_hidden_layers=2,
+            num_attention_heads=2, intermediate_size=64, num_labels=num_labels,
+        )
+        model = transformers.BertForSequenceClassification(cfg)
+        model.eval()
+        scores = score_pairs(tok, model, "a query", ["passage one", "passage two", "three"])
+        assert len(scores) == 3
+        assert all(isinstance(s, float) for s in scores)
+
+
+def test_cross_encoder_module_does_not_use_sentence_transformers():
+    """CVE-2026-68770 (CVSS 9.8) is a trust-gate bypass in sentence-transformers'
+    `import_module_class`: an `os.path.exists` clause satisfies the gate
+    regardless of `trust_remote_code=False`, so a malicious `modeling_*.py` in a
+    model directory executes at import. We load via `transformers` directly."""
+    source = (ROOT / "eval" / "cross_encoder.py").read_text()
+    assert "sentence_transformers" not in source
+    assert "trust_remote_code=False" in source
+    assert "use_safetensors=True" in source

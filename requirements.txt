@@ -35,6 +35,19 @@ tiktoken==0.14.0          # exact token counts for chunk sizing + cost accountin
 # message rather than crashing, so nothing here is a hard blocker.
 lightgbm==4.7.0
 scikit-learn==1.7.2
+
+# Cross-encoder reranking (eval/cross_encoder.py). CPU-only.
+#
+# Deliberately NOT sentence-transformers: CVE-2026-68770 (CVSS 9.8, 2026-07-31)
+# is a trust-gate bypass in its `import_module_class` — an `os.path.exists`
+# clause satisfies the gate regardless of `trust_remote_code=False`, so a
+# malicious `modeling_*.py` inside a downloaded model directory executes at
+# import. We load through `transformers` directly with trust_remote_code=False
+# and safetensors, which does not touch that code path.
+#
+# transformers is pinned post-CVE-2026-4372 (patched in 5.3.0).
+torch==2.13.0
+transformers==5.16.1
 numpy==2.4.6
 scipy==1.17.1
 
@@ -73,3 +86,24 @@ urllib3==2.7.0
 uvloop==0.22.1
 watchfiles==1.2.0
 websockets==17.1
+
+# --- transitive, pulled in by torch/transformers; pinned explicitly because
+# --- three of them resolved to releases 2-5 days old when left unpinned.
+cloudpickle==3.1.2
+filelock==3.32.4
+fsspec==2026.7.0
+hf-xet==1.6.0
+huggingface-hub==1.29.0
+Jinja2==3.1.6
+markdown-it-py==4.2.0
+MarkupSafe==3.0.3
+mdurl==0.1.2
+mpmath==1.3.0
+networkx==3.6.1
+rich==15.0.0
+safetensors==0.8.0
+shellingham==1.5.4
+sympy==1.14.0
+tokenizers==0.23.1
+tqdm==4.70.0
+typer==0.27.2

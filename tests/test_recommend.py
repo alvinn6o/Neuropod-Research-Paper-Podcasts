@@ -164,3 +164,67 @@ def test_recency_term_is_inert_on_this_corpus():
         "corpus is now fresh enough for the recency term to vary — the caveat in "
         "eval/recommend.py should be revisited"
     )
+
+
+# ---------------------------------------------------------------------------
+# Annotator reliability
+# ---------------------------------------------------------------------------
+
+PASS2 = ROOT / "eval" / "corpus" / "topic_qrels_llm_pass2.json"
+
+needs_pass2 = pytest.mark.skipif(not PASS2.exists(), reason="no second annotation pass")
+
+
+@needs_pass2
+def test_annotator_is_self_consistent():
+    """Test-retest reliability of the LLM annotator.
+
+    This is NOT validation. It is the same annotator judging the same papers a
+    second time under a different procedure (full abstracts, one at a time,
+    without consulting pass 1). It bounds reliability from above: an annotator
+    who cannot reproduce their own judgments certainly cannot be trusted
+    against someone else's. Human-vs-LLM kappa still requires a human.
+    """
+    from eval.annotate import cohens_kappa
+
+    p1 = json.loads((ROOT / "eval" / "corpus" / "topic_qrels_llm.json").read_text())
+    p2 = json.loads(PASS2.read_text())
+    a = [p1[t][pid] for t in p2 for pid in p2[t]]
+    b = [p2[t][pid] for t in p2 for pid in p2[t]]
+
+    kappa = cohens_kappa(a, b)
+    print(f"\n  self-consistency kappa = {kappa:.3f} over n={len(a)}")
+    assert kappa > 0.7, (
+        f"the annotator disagrees with itself (kappa={kappa:.3f}); the rubric is "
+        "too ambiguous to produce a usable label set"
+    )
+
+
+@needs_pass2
+def test_disagreements_concentrate_in_the_adjacent_grade():
+    """Where the rubric is actually weak.
+
+    Every disagreement between the two passes involved grade 1 ('adjacent'),
+    while the 0-vs-2 boundary was stable. That localises the ambiguity: the
+    definition of 'the topic is a real but secondary part of the paper' is the
+    part a second annotator would most likely read differently. Binarizing
+    (relevant vs not) raises kappa, which is the same fact from another angle.
+    """
+    from eval.annotate import cohens_kappa
+
+    p1 = json.loads((ROOT / "eval" / "corpus" / "topic_qrels_llm.json").read_text())
+    p2 = json.loads(PASS2.read_text())
+
+    disagreements = [
+        (p1[t][pid], p2[t][pid]) for t in p2 for pid in p2[t] if p1[t][pid] != p2[t][pid]
+    ]
+    assert disagreements, "no disagreements at all is suspicious, not reassuring"
+    assert all(1 in pair for pair in disagreements), (
+        "a disagreement now spans the 0-vs-2 boundary, not just the adjacent band — "
+        "the rubric has a new failure mode"
+    )
+
+    a = [p1[t][pid] for t in p2 for pid in p2[t]]
+    b = [p2[t][pid] for t in p2 for pid in p2[t]]
+    binary = cohens_kappa([1 if x >= 1 else 0 for x in a], [1 if y >= 1 else 0 for y in b])
+    assert binary >= cohens_kappa(a, b)

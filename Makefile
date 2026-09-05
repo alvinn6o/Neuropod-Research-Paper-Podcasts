@@ -1,4 +1,4 @@
-.PHONY: help install dev worker test test-pg typecheck build clean reset eval eval-judge corpus reranker recommend annotate dedupe deps-audit
+.PHONY: help install dev worker test test-pg typecheck build clean reset eval eval-judge corpus reranker recommend frontier annotate dedupe deps-audit
 
 help:
 	@echo "Targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  corpus      rebuild the frozen eval corpus (fetches PDFs from arXiv)"
 	@echo "  reranker    train + evaluate the learned reranker on held-out papers"
 	@echo "  recommend   Task A: paper-recommendation baselines vs labels"
+	@echo "  frontier    cross-encoder quality/latency frontier (downloads a model)"
 	@echo "  annotate    human spot-check of the LLM relevance labels"
 	@echo "  dedupe      remove duplicate episodes per (user_id, paper_id)"
 
@@ -76,6 +77,11 @@ reranker:
 # the prompt). Different unit, different labels, different baseline.
 recommend:
 	python -m eval.recommend
+
+# Quality/latency frontier: BM25 vs LambdaMART vs a pretrained cross-encoder.
+# Downloads ~90MB from HuggingFace on first run.
+frontier:
+	python -m eval.cross_encoder --papers $(or $(PAPERS),30)
 
 # Human spot-check of the LLM labels. Reports Cohen's kappa afterwards; below
 # ~0.6 the label definition is the problem, not the model.

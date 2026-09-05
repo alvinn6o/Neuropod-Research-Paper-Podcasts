@@ -33,7 +33,16 @@ from eval.topics import TOPICS, load_papers
 CORPUS = ROOT / "eval" / "corpus"
 POOL_PATH = CORPUS / "topic_pools.json"
 LABELS = {
+    # First pass: bulk judgment from title + category + abstract snippet.
     "llm": CORPUS / "topic_qrels_llm.json",
+    # Independent second pass by the same annotator, full abstracts, one paper
+    # at a time, without consulting pass 1. Kappa against `llm` measures
+    # SELF-CONSISTENCY (test-retest reliability), NOT agreement with a human.
+    # It is an upper bound: an annotator who cannot reproduce their own
+    # judgments certainly cannot be trusted against someone else's.
+    "llm_pass2": CORPUS / "topic_qrels_llm_pass2.json",
+    # The project owner. This is the only role that can produce the
+    # human-vs-LLM kappa the label set actually needs.
     "human": CORPUS / "topic_qrels_human.json",
 }
 MERGED = CORPUS / "topic_qrels.json"
@@ -145,7 +154,12 @@ def cmd_review(args) -> None:
 
 
 def _rebuild_merged() -> None:
-    """Human labels win where they exist; LLM fills the rest."""
+    """Human labels win where they exist; LLM pass 1 fills the rest.
+
+    Pass 2 deliberately does NOT feed the merged set — merging an annotator's
+    two attempts would destroy the disagreement signal that makes the
+    self-consistency number meaningful.
+    """
     llm, human = load_labels("llm"), load_labels("human")
     merged: dict[str, dict[str, int]] = {}
     for topic in set(llm) | set(human):
@@ -173,7 +187,7 @@ def cohens_kappa(a: list[int], b: list[int]) -> float:
 
 
 def cmd_agreement(args) -> None:
-    llm, human = load_labels("llm"), load_labels("human")
+    llm, human = load_labels("llm"), load_labels(args.against)
     pairs_a, pairs_b = [], []
     per_topic = {}
     for topic in sorted(set(llm) & set(human)):
@@ -188,8 +202,13 @@ def cmd_agreement(args) -> None:
         pairs_b += b
 
     if not pairs_a:
-        print("No overlapping judgments yet — run `review` to add human labels.")
+        print(f"No overlapping judgments between 'llm' and '{args.against}' yet.")
         return
+
+    kind = ("SELF-CONSISTENCY (same annotator, second pass) — an upper bound, "
+            "not validation" if args.against == "llm_pass2"
+            else "HUMAN vs LLM agreement")
+    print(f"\n{kind}\n")
 
     print(f"{'topic':<10} {'n':>5} {'raw agree':>11} {'kappa':>8}")
     print("-" * 38)
@@ -234,7 +253,7 @@ if __name__ == "__main__":
     w = sub.add_parser("worksheet"); w.add_argument("--topic"); w.add_argument("--limit", type=int, default=100); w.add_argument("--chars", type=int, default=700); w.set_defaults(fn=cmd_worksheet)
     i = sub.add_parser("ingest"); i.add_argument("path"); i.add_argument("--role", default="llm", choices=list(LABELS)); i.set_defaults(fn=cmd_ingest)
     r = sub.add_parser("review"); r.add_argument("--topic", required=True); r.add_argument("--n", type=int, default=20); r.set_defaults(fn=cmd_review)
-    a = sub.add_parser("agreement"); a.set_defaults(fn=cmd_agreement)
+    a = sub.add_parser("agreement"); a.add_argument("--against", default="human", choices=["human", "llm_pass2"]); a.set_defaults(fn=cmd_agreement)
     s = sub.add_parser("stats"); s.set_defaults(fn=cmd_stats)
     args = ap.parse_args()
     args.fn(args)
