@@ -9,6 +9,7 @@ from .discover.arxiv_client import ArxivClient
 from .discover.ranker import rank_candidates
 from .discover.semantic_scholar import SemanticScholarClient
 from .generate.embedder import EmbeddingError, get_embedder
+from .generate.claims import check_script
 from .generate.facets import build_facet_queries, facet_names
 from .generate.qa_check import QAChecker
 from .generate.retriever import PROMPT_CHUNK_LIMIT, RETRIEVER_VERSION, Retriever
@@ -121,6 +122,24 @@ def build_demo_payload(
         script, llm_label = writer.write(candidate, retrieved, topics)
         qa_status, qa_notes = checker.verify(script, chunk_dicts)
 
+        # Deterministic generation checks, $0 and reproducible. The most
+        # damaging failure this system can have is a fabricated number: a
+        # script that confidently states a result the paper never reported.
+        # Grounding context is the chunks that reached the prompt plus the
+        # abstract, which the prompt also supplies.
+        claims = check_script(
+            script, retrieved[:PROMPT_CHUNK_LIMIT], abstract=candidate.abstract
+        )
+        # Unlike the lexical-overlap check, this one actually changes
+        # qa_status. A `flagged` episode still ships — that is a product
+        # decision, not an oversight — but the reason is now specific enough to
+        # act on ("3 of 7 numbers unsupported: 94%, 12.7x") rather than the
+        # previous "terms may not be fully grounded".
+        claim_status, claim_note = _grade_claims(claims, candidate.arxiv_id)
+        if claim_status == "flagged":
+            qa_status = "flagged"
+            qa_notes = f"{claim_note} {qa_notes}".strip()
+
         retrieval_trace = [
             {
                 "chunk_id": row["chunk"]["id"],
@@ -155,6 +174,7 @@ def build_demo_payload(
         # Carried on the payload so the runner can persist it once the episode
         # has a real database id.
         episode_dict["retrieval_trace"] = retrieval_trace
+        episode_dict["claim_report"] = claims.to_dict()
         episodes.append(episode_dict)
 
     return {
@@ -164,6 +184,30 @@ def build_demo_payload(
         "episodes": episodes,
         "skipped": skipped,
     }
+
+
+# At least this many numeric claims before the rate means anything. Below it,
+# one unmatched figure drops precision to 0.5 and the flag is noise.
+MIN_CLAIMS_TO_JUDGE = 3
+MIN_NUMERIC_PRECISION = 0.5
+
+
+def _grade_claims(report, arxiv_id: str) -> tuple[str, str]:
+    """Turn a claim report into a qa_status and a note a human can act on."""
+    if report.numbers_total >= MIN_CLAIMS_TO_JUDGE and \
+            report.numeric_precision < MIN_NUMERIC_PRECISION:
+        unsupported = report.numbers_total - report.numbers_grounded
+        note = (f"{unsupported} of {report.numbers_total} numeric claims are not "
+                f"supported by the retrieved context: "
+                f"{', '.join(report.ungrounded[:5])}.")
+        logger.warning("%s flagged: %s", arxiv_id, note)
+        return "flagged", note
+    if not report.within_word_budget:
+        note = (f"Script is {report.word_count} words; the prompt asks for "
+                f"800-1200.")
+        logger.info("%s: %s", arxiv_id, note)
+        return "verified", note
+    return "verified", ""
 
 
 def _derive_topic(categories: list[str], topics: list[str]) -> str:

@@ -345,6 +345,44 @@ Only `abstract` broadly survives. `results` — the second-highest hand-set weig
 largest positive weight. That is the concrete version of "these weights were
 never fit to anything."
 
+### Generation quality — the untested half
+
+Retrieval quality was measured from the start. **Generation quality was not
+measured at all**: the only check was sixteen lines of unigram overlap that
+never blocked anything and whose note read "terms may not be fully grounded".
+
+The failure that matters most is a **fabricated number**. A script that says a
+model reached 94% accuracy when the paper says 71% is worse than a vague one —
+it is confidently, specifically wrong, and a listener cannot tell. So
+`pipeline/generate/claims.py` extracts every numeric claim from a script and
+checks it against the context that produced it (retrieved chunks plus the
+abstract, since the prompt supplies both).
+
+Deterministic, $0, no model. It runs on every generation and can gate in CI.
+
+| Script | numeric precision | flagged? |
+|---|---|---|
+| "71% accuracy, 5.2x speedup on 8 GPUs" | 1.00 | no |
+| "94% accuracy, 12.7x speedup, 33.5 BLEU" | 0.00 | **yes** |
+| "accuracy was 17%" (one digit swapped) | 0.00 | — |
+
+Unlike the old check, this one **changes `qa_status`**, and the note names the
+offending figures — *"3 of 7 numeric claims are not supported: 94%, 12.7x,
+33.5"* — instead of gesturing at ungroundedness.
+
+It also verifies the two things the prompt has always demanded and nothing ever
+checked: 800–1200 words, 4–7 paragraphs, no markdown. The demo scriptwriter
+fails the word budget at ~160 words, which is exactly the sort of thing a
+format check exists to catch.
+
+**What it is not.** A number missing from context is a flag, not a verdict. The
+model may have derived a value, restated units, or referred to its own framing.
+Years and bare small integers are filtered for that reason, and a script needs
+at least three numeric claims before the rate is judged — below that, one
+unmatched figure drops precision to 0.5 and the flag is noise. An earlier
+version also mapped word-numbers to digits, which turned "the third experiment"
+into a 33% claim; that was removed and there is a regression test for it.
+
 ### Hyperparameter tuning, and why it changed nothing
 
 Nothing had ever been tuned — every LightGBM setting was hand-picked. Closing
