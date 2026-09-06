@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import textwrap
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -124,10 +125,23 @@ def cmd_review(args) -> None:
     papers = {p.arxiv_id: p for p in load_papers()}
     topic = args.topic
 
-    candidates = [pid for pid in llm.get(topic, {}) if pid not in human.get(topic, {})]
+    already = human.get(topic, {})
+    if args.redo:
+        # Clearing rather than re-prompting: a corrected judgment made while
+        # looking at the old one is not independent, and independence is the
+        # only reason these labels are worth collecting.
+        print(f"--redo: discarding {len(already)} existing judgments for '{topic}'")
+        human[topic] = {}
+        already = human[topic]
+
+    candidates = [pid for pid in llm.get(topic, {}) if pid not in already]
     if not candidates:
-        print(f"{topic}: nothing left to review")
+        print(f"{topic}: all {len(already)} already judged. "
+              f"Re-do them with:  make annotate TOPIC={topic} REDO=1")
         return
+    if already:
+        print(f"resuming '{topic}': {len(already)} already judged, "
+              f"{len(candidates)} remaining\n")
 
     print(GUIDELINE)
     print("=" * 78)
@@ -148,10 +162,24 @@ def cmd_review(args) -> None:
     for i, pid in enumerate(candidates[:total], start=1):
         p = papers[pid]
         suggested = llm[topic][pid]
-        print("\n" + "-" * 78)
-        print(f"[{i}/{total}] {pid}   arXiv category: {p.primary_category}")
-        print(f"\n  {p.title}\n")
-        print(f"  {' '.join(p.abstract.split())[:args.chars]}")
+        abstract = " ".join(p.abstract.split())
+        truncated = abstract[: args.chars]
+        print("\n" + "=" * 78)
+        print(f"[{i}/{total}]  {pid}   arXiv: {p.primary_category}")
+        print("=" * 78)
+        for line in textwrap.wrap(p.title, width=74):
+            print(f"  {line}")
+        print()
+        # Wrapped rather than dumped as one long line: a terminal soft-wrap
+        # breaks mid-word and makes a 900-character abstract genuinely hard to
+        # read, which is a bad way to collect careful judgments.
+        for line in textwrap.wrap(truncated, width=74):
+            print(f"    {line}")
+        if len(abstract) > args.chars:
+            print(f"    [... {len(abstract) - args.chars} more chars; "
+                  f"raise with --chars]")
+        print(f"\n  TOPIC: {TOPICS[topic]}")
+        print("  2 = squarely on topic   1 = adjacent/secondary   0 = off topic")
         if args.show_llm:
             print(f"\n  (LLM said: {suggested})")
         while True:
@@ -287,7 +315,9 @@ if __name__ == "__main__":
     r = sub.add_parser("review")
     r.add_argument("--topic", required=True, choices=list(TOPICS))
     r.add_argument("--n", type=int, default=20)
-    r.add_argument("--chars", type=int, default=600)
+    r.add_argument("--chars", type=int, default=1100)
+    r.add_argument("--redo", action="store_true",
+                   help="discard existing human judgments for this topic and start over")
     r.add_argument("--show-llm", action="store_true",
                    help="show the LLM grade BEFORE you answer (anchors you; not for kappa)")
     r.set_defaults(fn=cmd_review)

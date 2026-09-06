@@ -93,7 +93,7 @@ tune:
 # ~0.6 the label definition is the problem, not the model.
 annotate:
 	@if [ -z "$(TOPIC)" ]; then echo "TOPIC=llm|vision|rl|graph|theory required"; exit 1; fi
-	python -m eval.annotate review --topic $(TOPIC) --n $(or $(N),20)
+	python -m eval.annotate review --topic $(TOPIC) --n $(or $(N),20) --chars $(or $(CHARS),1100) $(if $(REDO),--redo,)
 	python -m eval.annotate agreement
 
 dedupe:
