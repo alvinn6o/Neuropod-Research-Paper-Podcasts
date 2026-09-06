@@ -83,7 +83,25 @@ def load_labels(role: str) -> dict[str, dict[str, int]]:
 
 
 def save_labels(role: str, data: dict) -> None:
+    """Full overwrite. Only safe when the caller owns the entire file."""
     LABELS[role].write_text(json.dumps(data, indent=2, sort_keys=True))
+
+
+def save_topic(role: str, topic: str, judgments: dict[str, int]) -> None:
+    """Write back ONE topic, merging into whatever is on disk right now.
+
+    A review session used to load the whole file at start and write its whole
+    in-memory copy at the end. Anything that changed on disk meanwhile was
+    silently reverted — a concurrent session in another topic lost its work,
+    and a topic dropped mid-session came back from the dead. Both happened.
+
+    Re-reading immediately before writing narrows that window to the write
+    itself, and only the reviewed topic is touched, so sessions in different
+    topics no longer overwrite each other.
+    """
+    current = load_labels(role)
+    current[topic] = judgments
+    LABELS[role].write_text(json.dumps(current, indent=2, sort_keys=True))
 
 
 def cmd_worksheet(args) -> None:
@@ -206,7 +224,7 @@ def cmd_review(args) -> None:
         else:
             print(f"  x LLM said {suggested}, you said {raw}  <- disagreement, this is the signal")
 
-    save_labels("human", human)
+    save_topic("human", topic, bucket)
     print("\n" + "=" * 78)
     print(f"saved {scored} judgments this session "
           f"({sum(len(v) for v in human.values())} total across all topics)")

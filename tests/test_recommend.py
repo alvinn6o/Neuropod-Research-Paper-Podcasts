@@ -228,3 +228,61 @@ def test_disagreements_concentrate_in_the_adjacent_grade():
     b = [p2[t][pid] for t in p2 for pid in p2[t]]
     binary = cohens_kappa([1 if x >= 1 else 0 for x in a], [1 if y >= 1 else 0 for y in b])
     assert binary >= cohens_kappa(a, b)
+
+
+def test_saving_one_topic_does_not_clobber_another(tmp_path, monkeypatch):
+    """Regression test for a real data-loss bug.
+
+    A review session loaded the whole label file at start and wrote its whole
+    in-memory copy at the end. Anything that changed on disk meanwhile was
+    silently reverted: a session in another topic lost its work, and a topic
+    dropped mid-session came back. Both actually happened during labelling.
+    """
+    from eval import annotate
+
+    path = tmp_path / "labels.json"
+    monkeypatch.setitem(annotate.LABELS, "human", path)
+
+    annotate.save_labels("human", {"llm": {"a": 2}, "vision": {"b": 1}})
+    # A second session, started before the next change, saves only its topic.
+    annotate.save_topic("human", "graph", {"c": 0})
+
+    saved = json.loads(path.read_text())
+    assert saved["llm"] == {"a": 2}, "another topic's judgments were clobbered"
+    assert saved["vision"] == {"b": 1}
+    assert saved["graph"] == {"c": 0}
+
+
+def test_dropping_a_topic_records_a_reason(tmp_path, monkeypatch):
+    """A dropped topic becomes single-annotator, and that limitation has to
+    travel with the data rather than live in a commit message."""
+    from eval import annotate
+
+    labels = tmp_path / "labels.json"
+    excl = tmp_path / "exclusions.json"
+    monkeypatch.setitem(annotate.LABELS, "human", labels)
+    monkeypatch.setattr(annotate, "EXCLUSIONS", excl)
+    monkeypatch.setattr(annotate, "MERGED", tmp_path / "merged.json")
+
+    annotate.save_labels("human", {"theory": {"a": 1}, "llm": {"b": 2}})
+    args = type("A", (), {"topic": "theory", "role": "human", "reason": "no expertise"})()
+    annotate.cmd_drop(args)
+
+    assert "theory" not in json.loads(labels.read_text())
+    recorded = json.loads(excl.read_text())["human"]["theory"]
+    assert recorded["dropped"] == 1 and recorded["reason"] == "no expertise"
+
+
+def test_category_check_needs_no_annotator_judgment():
+    """The third signal exists because both annotators are fallible: the LLM is
+    systematically generous, and the human lacks expertise in several
+    subfields. arXiv categories are author-assigned, so they depend on neither.
+    """
+    from eval.category_check import TOPIC_CATEGORIES, category_label
+    from eval.topics import TOPICS
+
+    assert set(TOPIC_CATEGORIES) == set(TOPICS)
+
+    paper = type("P", (), {"categories": ["cs.CV", "cs.LG"], "primary_category": "cs.CV"})()
+    assert category_label(paper, "vision") == 1
+    assert category_label(paper, "llm") == 0
