@@ -528,3 +528,73 @@ def test_cross_encoder_module_does_not_use_sentence_transformers():
     assert "sentence_transformers" not in source
     assert "trust_remote_code=False" in source
     assert "use_safetensors=True" in source
+
+
+# ---------------------------------------------------------------------------
+# Nested cross-validation
+# ---------------------------------------------------------------------------
+
+TUNING = ROOT / "eval" / "tuning_results.json"
+needs_tuning = pytest.mark.skipif(not TUNING.exists(), reason="tuning not run")
+
+
+def test_nested_folds_never_share_a_paper():
+    """Grouping has to hold at BOTH levels. An inner fold that shares a paper
+    with its outer test set leaks the answer into hyperparameter selection."""
+    from eval.tune import folds_by_paper, split_on
+
+    rows = [{"paper_id": f"p{i}", "query_id": f"q{i}"} for i in range(20)]
+    for held in folds_by_paper(rows, 5):
+        outer_train, outer_test = split_on(rows, held)
+        outer_test_papers = {r["paper_id"] for r in outer_test}
+        assert not ({r["paper_id"] for r in outer_train} & outer_test_papers)
+        for inner_held in folds_by_paper(outer_train, 3):
+            inner_train, inner_test = split_on(outer_train, inner_held)
+            assert not ({r["paper_id"] for r in inner_train} & {r["paper_id"] for r in inner_test})
+            assert not ({r["paper_id"] for r in inner_test} & outer_test_papers)
+
+
+def test_search_space_contains_the_incumbent_config():
+    """The sweep must be able to re-select the hand-picked settings.
+
+    If the incumbent is outside the search space, 'tuning improved things' can
+    just mean 'the arbitrary alternative was worse'.
+    """
+    from eval.tune import BASELINE_CONFIG, GRID, sample_configs
+
+    for key, value in BASELINE_CONFIG.items():
+        assert value in GRID[key], f"{key}={value} is not in the search grid"
+    assert sample_configs(6)[0] == BASELINE_CONFIG
+
+
+@needs_tuning
+def test_nested_estimate_is_not_above_the_non_nested_one():
+    """The direction of selection bias, asserted.
+
+    Choosing a winner on the same folds you report inflates the score. The
+    nested estimate should therefore sit at or below the non-nested one; if it
+    were meaningfully above, the nesting is wired wrong.
+    """
+    r = json.loads(TUNING.read_text())
+    assert r["nested_ndcg"] <= r["nonnested_ndcg"] + 0.005, (
+        f"nested ({r['nested_ndcg']:.4f}) exceeds non-nested "
+        f"({r['nonnested_ndcg']:.4f}) — check the fold wiring"
+    )
+    assert r["selection_bias"] >= 0
+
+
+@needs_tuning
+def test_tuning_gain_is_reported_against_a_held_out_set():
+    """A CV gain is a hypothesis; the holdout is the test of it.
+
+    Here the CV gain was +0.017 and the holdout gain +0.002 (p=0.768). The
+    point of this test is that both numbers exist and the holdout one is the
+    reported conclusion.
+    """
+    r = json.loads(TUNING.read_text())
+    assert "holdout" in r and {"hand-picked", "tuned"} <= set(r["holdout"])
+    assert "holdout_paired" in r
+    cv_gain = r["nested_ndcg"] - r["hand_picked_cv"]
+    holdout_gain = r["holdout"]["tuned"] - r["holdout"]["hand-picked"]
+    print(f"\n  CV gain {cv_gain:+.4f} vs holdout gain {holdout_gain:+.4f} "
+          f"(p={r['holdout_paired']['p_value']:.3f})")

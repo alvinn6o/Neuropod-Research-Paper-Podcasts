@@ -345,6 +345,43 @@ Only `abstract` broadly survives. `results` — the second-highest hand-set weig
 largest positive weight. That is the concrete version of "these weights were
 never fit to anything."
 
+### Hyperparameter tuning, and why it changed nothing
+
+Nothing had ever been tuned — every LightGBM setting was hand-picked. Closing
+that gap with **nested** cross-validation, because the obvious version lies:
+if you try many configurations and report the best CV score, that score
+includes the luck that made it win. An inner CV over the training folds selects;
+the outer fold, which selection never saw, reports.
+
+| | nDCG@10 | |
+|---|---|---|
+| hand-picked config, plain CV | 0.5015 | the incumbent |
+| best config, **non-nested** CV | 0.5239 | optimistic |
+| tuning procedure, **nested** CV | 0.5183 | honest |
+
+**Selection bias = +0.0056** — the price of picking a winner on the folds you
+report, measured rather than assumed.
+
+**And then the CV gain did not transfer.** On held-out papers, tuned scores
+0.4856 against hand-picked 0.4838: **+0.002, CI [−0.014, +0.019], p=0.768 —
+not significant.** A +0.017 CV improvement became nothing on unseen papers.
+
+So the tuned configuration was **not adopted**. The hand-picked settings ship,
+and the sweep is kept as evidence that the question was asked. Reporting a
+tuning result you then decline to use is more useful than quietly shipping a
+config with no support behind it.
+
+One signal did survive: `reg_lambda=10.0` was chosen by **5 of 5** outer folds,
+against the incumbent's 1.0 — stronger regularization is consistently
+preferred, even though the net effect washes out. `num_leaves` was chosen
+consistently by only 3 of 5, which is its own finding: a hyperparameter the
+data cannot pin down is one the model is insensitive to, and tuning it is
+noise.
+
+```bash
+python -m eval.tune --configs 12   # ~6 min, 192 fits
+```
+
 **Negative sampling mattered more than model choice.** Training on the top 20
 BM25 hard negatives scored 0.264 on dev; the full candidate pool scored 0.443.
 Subsampling trains on a distribution the model is never served — at inference it
