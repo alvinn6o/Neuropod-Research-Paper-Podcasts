@@ -31,6 +31,16 @@ CHUNKS_PATH = FIXTURES / "mamba_chunks.json"
 QUERIES_PATH = FIXTURES / "mamba_queries.json"
 META_PATH = FIXTURES / "mamba_meta.json"
 
+# Which embedder produced the checked-in vectors. Printed with every metric so a
+# number can never be quoted without the model that produced it — the README
+# previously reported these as the system's retrieval quality when they measure
+# the SHA256 bag-of-words fallback, not the shipping OpenAI path.
+EMBEDDER_BACKEND = (
+    json.loads(META_PATH.read_text()).get("embedder_backend", "unknown")
+    if META_PATH.exists()
+    else "unknown"
+)
+
 
 def _load_chunks() -> list[dict]:
     return json.loads(CHUNKS_PATH.read_text())
@@ -90,6 +100,25 @@ def test_fixtures_present():
     assert len(queries) >= 10, "need at least 10 queries for meaningful recall stats"
 
 
+def wilson_interval(hits: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """95% Wilson score interval for a binomial proportion.
+
+    Reported alongside every recall number because the point estimate on its own
+    is misleading at this sample size: recall@1 = 7/12 carries an interval of
+    roughly [0.32, 0.81]. An interval that wide cannot distinguish a real 10-point
+    retrieval improvement from noise, which means any A/B comparison run against
+    this fixture is unfalsifiable. Fixing that needs more papers and more
+    queries, not a better retriever — see Phase 1 of the roadmap.
+    """
+    if n == 0:
+        return (0.0, 0.0)
+    p_hat = hits / n
+    denom = 1 + z**2 / n
+    center = (p_hat + z**2 / (2 * n)) / denom
+    margin = z * ((p_hat * (1 - p_hat) / n + z**2 / (4 * n**2)) ** 0.5) / denom
+    return (max(0.0, center - margin), min(1.0, center + margin))
+
+
 @pytest.mark.parametrize("k", [1, 5, 10])
 def test_recall_at_k(retriever, chunks, queries, k):
     hits = 0
@@ -99,8 +128,12 @@ def test_recall_at_k(retriever, chunks, queries, k):
             hits += 1
     recall = hits / len(queries)
 
-    # Print so CI logs show real numbers
-    print(f"\n  recall@{k}: {hits} of {len(queries)} queries had a gold chunk in top-{k} ({recall:.1%})")
+    # Print so CI logs show real numbers — with the interval, not just the point
+    lo, hi = wilson_interval(hits, len(queries))
+    print(
+        f"\n  recall@{k}: {hits}/{len(queries)} = {recall:.1%} "
+        f"[95% CI {lo:.1%}-{hi:.1%}]  (embedder={EMBEDDER_BACKEND}, n={len(queries)})"
+    )
 
     # Honest, embedder-agnostic floor. Hash embeddings yield ~50-70%;
     # OpenAI embeddings should clear ~85%+ at k=10.
@@ -119,7 +152,7 @@ def test_mrr(retriever, chunks, queries):
         rank = _first_hit_rank(top, q["gold_substrings"])
         reciprocal_ranks.append(1.0 / rank if rank else 0.0)
     mrr = sum(reciprocal_ranks) / len(reciprocal_ranks)
-    print(f"\n  MRR over {len(queries)} queries = {mrr:.3f}")
+    print(f"\n  MRR over {len(queries)} queries = {mrr:.3f}  (embedder={EMBEDDER_BACKEND})")
     assert mrr > 0.15, f"MRR={mrr:.3f} — first relevant chunk is ranked too low on average"
 
 

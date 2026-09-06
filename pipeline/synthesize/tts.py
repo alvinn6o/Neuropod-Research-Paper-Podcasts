@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 import math
 import os
 import struct
@@ -12,6 +13,47 @@ from .._http import ProviderError, post_for_bytes
 from ..provider_status import record_failure, record_success
 
 logger = logging.getLogger("neuropod.tts")
+
+# OpenAI's /audio/speech input cap is 4096 characters; leave headroom so a
+# sentence never lands exactly on the boundary.
+_OPENAI_TTS_CHAR_LIMIT = 3800
+
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def _split_for_tts(script: str, *, limit: int) -> list[str]:
+    """Split on sentence boundaries into pieces under `limit` characters.
+
+    A sentence longer than `limit` on its own is hard-split rather than dropped —
+    rare in narration prose, but silently losing it would reintroduce exactly the
+    bug this replaces.
+    """
+    script = script.strip()
+    if len(script) <= limit:
+        return [script] if script else []
+
+    parts: list[str] = []
+    current = ""
+    for sentence in _SENTENCE_END.split(script):
+        if not sentence:
+            continue
+        if len(sentence) > limit:
+            if current:
+                parts.append(current)
+                current = ""
+            for start in range(0, len(sentence), limit):
+                parts.append(sentence[start : start + limit])
+            continue
+        candidate = f"{current} {sentence}".strip() if current else sentence
+        if len(candidate) <= limit:
+            current = candidate
+        else:
+            parts.append(current)
+            current = sentence
+    if current:
+        parts.append(current)
+    return parts
+
 
 
 class TTSProvider:
@@ -82,6 +124,24 @@ class TTSProvider:
         )
 
     def _call_openai(self, script: str) -> bytes:
+        """Synthesize the whole script, in sentence-aligned pieces.
+
+        The OpenAI speech endpoint caps input at 4096 characters. This used to
+        be `script[:4000]`, a hard truncation: scripts target 800-1200 words
+        (~5,000-7,500 characters), so roughly a third of every episode was
+        silently dropped and the audio ended mid-sentence. Nothing logged it.
+
+        MP3 frames are self-contained, so concatenating the parts from one
+        encoder produces a playable file. It is not a substitute for real
+        stitching with crossfades — `synthesize/audio_post.py` exists for that
+        and is currently unwired — but it does not lose a third of the script.
+        """
+        parts = _split_for_tts(script, limit=_OPENAI_TTS_CHAR_LIMIT)
+        if len(parts) > 1:
+            logger.info("openai tts: %d chars split into %d requests", len(script), len(parts))
+        return b"".join(self._call_openai_chunk(part) for part in parts)
+
+    def _call_openai_chunk(self, text: str) -> bytes:
         return post_for_bytes(
             provider="openai-tts",
             url="https://api.openai.com/v1/audio/speech",
@@ -92,7 +152,7 @@ class TTSProvider:
             body={
                 "model": "tts-1",
                 "voice": self.openai_voice,
-                "input": script[:4000],
+                "input": text,
                 "response_format": "mp3",
             },
             timeout=180,

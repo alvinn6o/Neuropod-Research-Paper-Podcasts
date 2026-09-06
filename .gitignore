@@ -40,3 +40,14 @@ data/
 # Dist / build
 dist/
 build/
+
+.venv/
+.venv-verify/
+
+# Evaluation corpus: PDFs are re-fetchable from the pinned ids in
+# eval/corpus/papers.txt and verified against manifest.json's sha256, so there
+# is no reason to carry 200MB of them in git. The derived artifacts (manifest,
+# chunks, queries) ARE committed — CI must never hit the network.
+eval/corpus/_pdf_cache/
+eval/corpus/_llm_query_cache.json
+eval/corpus/_emb_cache/

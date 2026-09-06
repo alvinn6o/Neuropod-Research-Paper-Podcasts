@@ -69,7 +69,7 @@ def test_embedder_selection_falls_back_without_keys(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Retriever: section bonus + ranking semantics
+# Retriever: ranking semantics
 # ---------------------------------------------------------------------------
 
 def _chunk(section: str, content: str, idx: int = 0) -> dict:
@@ -95,14 +95,29 @@ def test_retriever_returns_top_k():
     assert len(out) == 2
 
 
-def test_retriever_prefers_results_section_when_tied():
-    """The section bonus must surface results-style content above intro fluff."""
+def test_retriever_does_not_apply_a_section_prior():
+    """The hand-set section prior is deliberately NOT in the scoring path.
+
+    This test previously asserted the opposite — that a `results` chunk should
+    outrank an identical `introduction` chunk purely because of its section.
+    Measured on the 168-paper benchmark, that prior is harmful: dense ->
+    dense+prior costs 0.034 nDCG@10, CI [-0.042, -0.025], p<0.001, and
+    rrf -> rrf+prior costs 0.011, p<0.001. The weights were never fit to
+    anything.
+
+    With identical text, the two chunks must now tie on score. `section_bonus`
+    survives as a class attribute only so eval/ can reproduce the old baseline
+    and the learned reranker's section weights can be read against it.
+    """
     chunks = [
         _chunk("introduction", "language models are widely studied", 0),
         _chunk("results", "language models are widely studied", 1),
     ]
-    top = Retriever().retrieve(chunks, "language models", limit=1)
-    assert top[0]["section"] == "results"
+    scored = Retriever().retrieve_scored(chunks, "language models", limit=2)
+    assert scored[0]["final_score"] == scored[1]["final_score"], (
+        "identical text in different sections must score identically"
+    )
+    assert all(row["section_bonus"] == 0.0 for row in scored)
 
 
 def test_retriever_uses_dense_embeddings_when_present():

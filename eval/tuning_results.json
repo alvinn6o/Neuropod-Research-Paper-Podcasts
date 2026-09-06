@@ -1,0 +1,69 @@
+{
+  "nested_ndcg": 0.5183242425764139,
+  "nonnested_ndcg": 0.5239240200254013,
+  "hand_picked_cv": 0.5015188679747128,
+  "selection_bias": 0.005599777448987431,
+  "outer_scores": [
+    0.5179437278094924,
+    0.5366098503442658,
+    0.5437936734120706,
+    0.4961536613496059,
+    0.49712029996663465
+  ],
+  "chosen_per_fold": [
+    {
+      "n_estimators": 600,
+      "learning_rate": 0.06,
+      "num_leaves": 15,
+      "min_child_samples": 40,
+      "reg_lambda": 10.0
+    },
+    {
+      "n_estimators": 600,
+      "learning_rate": 0.06,
+      "num_leaves": 7,
+      "min_child_samples": 40,
+      "reg_lambda": 10.0
+    },
+    {
+      "n_estimators": 600,
+      "learning_rate": 0.06,
+      "num_leaves": 7,
+      "min_child_samples": 40,
+      "reg_lambda": 10.0
+    },
+    {
+      "n_estimators": 600,
+      "learning_rate": 0.06,
+      "num_leaves": 7,
+      "min_child_samples": 40,
+      "reg_lambda": 10.0
+    },
+    {
+      "n_estimators": 300,
+      "learning_rate": 0.12,
+      "num_leaves": 15,
+      "min_child_samples": 20,
+      "reg_lambda": 10.0
+    }
+  ],
+  "final_config": {
+    "n_estimators": 600,
+    "learning_rate": 0.06,
+    "num_leaves": 7,
+    "min_child_samples": 40,
+    "reg_lambda": 10.0
+  },
+  "holdout": {
+    "hand-picked": 0.48378816258771457,
+    "tuned": 0.4855962417174822
+  },
+  "holdout_paired": {
+    "delta": 0.0018080791297675934,
+    "ci_low": -0.013925100279018629,
+    "ci_high": 0.019259793051971695,
+    "p_value": 0.768,
+    "n": 382
+  },
+  "minutes": 5.774373318050008
+}
