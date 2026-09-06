@@ -47,6 +47,10 @@ LABELS = {
     "human": CORPUS / "topic_qrels_human.json",
 }
 MERGED = CORPUS / "topic_qrels.json"
+# Which topics a role deliberately did NOT judge, and why. Kept next to the
+# labels so the gap travels with the data rather than living in a commit
+# message nobody reads.
+EXCLUSIONS = CORPUS / "topic_qrels_exclusions.json"
 
 # The rubric. Written down because "relevant" is not self-evident, and an
 # annotation guideline that lives only in someone's head cannot be audited,
@@ -274,11 +278,18 @@ def cmd_agreement(args) -> None:
     print("-" * 38)
     for topic, (k, n, raw) in per_topic.items():
         print(f"{topic:<10} {n:>5} {raw:>10.1%} {k:>8.3f}")
+    unjudged = sorted(set(TOPICS) - set(per_topic))
     overall = cohens_kappa(pairs_a, pairs_b)
     raw = sum(x == y for x, y in zip(pairs_a, pairs_b)) / len(pairs_a)
     print("-" * 38)
     print(f"{'OVERALL':<10} {len(pairs_a):>5} {raw:>10.1%} {overall:>8.3f}")
     print(f"\n  interpretation: {_kappa_reading(overall)}")
+    if unjudged:
+        print(f"\n  NOT covered by this kappa: {', '.join(unjudged)} — single-annotator.")
+        if EXCLUSIONS.exists():
+            notes = json.loads(EXCLUSIONS.read_text()).get(args.against if args.against != "llm_pass2" else "human", {})
+            for topic, info in sorted(notes.items()):
+                print(f"    {topic}: dropped ({info['reason']})")
     if overall < 0.6:
         print("  ** Below 0.6 — fix the label DEFINITION before trusting any model number. **")
 
@@ -289,6 +300,41 @@ def _kappa_reading(k: float) -> str:
     if k < 0.60: return "moderate — usable but the rubric is ambiguous somewhere"
     if k < 0.80: return "substantial — the standard bar for a usable label set"
     return "almost perfect"
+
+
+def cmd_drop(args) -> None:
+    """Discard one annotator role's judgments for a topic, with a reason.
+
+    A legitimate annotation decision, not a cleanup: an annotator without the
+    domain knowledge to judge a topic produces labels that look like data and
+    are not. Dropping them is correct — silently keeping them is what would
+    corrupt the label set.
+
+    The reason is recorded because the consequence outlives the deletion: that
+    topic's labels stay single-annotator, so kappa does not cover it and any
+    Task A number involving it carries a weaker claim.
+    """
+    data = load_labels(args.role)
+    removed = len(data.get(args.topic, {}))
+    if not removed:
+        print(f"{args.role} has no judgments for '{args.topic}'")
+        return
+    data.pop(args.topic, None)
+    save_labels(args.role, data)
+
+    notes = json.loads(EXCLUSIONS.read_text()) if EXCLUSIONS.exists() else {}
+    notes.setdefault(args.role, {})[args.topic] = {
+        "dropped": removed,
+        "reason": args.reason,
+    }
+    EXCLUSIONS.write_text(json.dumps(notes, indent=2, sort_keys=True))
+
+    print(f"dropped {removed} '{args.topic}' judgments from '{args.role}'")
+    print(f"  reason recorded in {EXCLUSIONS.name}: {args.reason}")
+    print(f"\n  '{args.topic}' is now single-annotator (LLM only). Kappa will not")
+    print(f"  cover it, and that limitation should be stated wherever Task A")
+    print(f"  numbers for '{args.topic}' are reported.")
+    _rebuild_merged()
 
 
 def cmd_stats(args) -> None:
@@ -322,6 +368,12 @@ if __name__ == "__main__":
                    help="show the LLM grade BEFORE you answer (anchors you; not for kappa)")
     r.set_defaults(fn=cmd_review)
     a = sub.add_parser("agreement"); a.add_argument("--against", default="human", choices=["human", "llm_pass2"]); a.set_defaults(fn=cmd_agreement)
+    d = sub.add_parser("drop")
+    d.add_argument("--topic", required=True, choices=list(TOPICS))
+    d.add_argument("--role", default="human", choices=list(LABELS))
+    d.add_argument("--reason", required=True,
+                   help="why these judgments are being discarded (recorded, not optional)")
+    d.set_defaults(fn=cmd_drop)
     s = sub.add_parser("stats"); s.set_defaults(fn=cmd_stats)
     args = ap.parse_args()
     args.fn(args)
