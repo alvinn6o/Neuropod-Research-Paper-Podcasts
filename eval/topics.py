@@ -43,6 +43,45 @@ TOPICS: dict[str, str] = {
     "theory": "learning theory, generalization bounds, statistical estimation, convergence analysis, optimization theory",
 }
 
+# What a paper must actually be ABOUT, spelled out separately from the search
+# terms above. The two were conflated, and the conflation caused a measurable
+# labelling error: an annotator reading only the keyword list graded cs.CL
+# papers on reading comprehension and discourse coherence as relevant to "large
+# language models", because they share vocabulary. Agreement with author-
+# assigned arXiv categories confirmed it — the LLM's middle grade matched the
+# category 71% of the time, i.e. it was labelling "is this cs.CL", not "is this
+# about LLMs".
+TOPIC_DEFINITIONS: dict[str, str] = {
+    "llm": (
+        "The paper is about large language models specifically — training them, "
+        "prompting them, evaluating them, making inference cheaper, or studying "
+        "their behaviour. NOT: any NLP task that predates LLMs (parsing, "
+        "translation, discourse, classic QA), and NOT transformers applied to "
+        "images or audio."
+    ),
+    "vision": (
+        "The paper's main contribution is a visual task: recognition, detection, "
+        "segmentation, pose, 3D, image or video generation, or a vision-language "
+        "model. NOT: a general method merely evaluated on an image dataset."
+    ),
+    "rl": (
+        "The paper studies sequential decision making under uncertainty — RL, "
+        "bandits, exploration, or policy optimization. NOT: any optimization or "
+        "search procedure (hyperparameter search, architecture search) that has "
+        "no notion of reward over time."
+    ),
+    "graph": (
+        "The paper is about graph-structured data — GNNs, graph representation "
+        "learning, node or edge prediction, or network analysis. NOT: methods "
+        "that merely mention a computation graph or use topology as a metaphor."
+    ),
+    "theory": (
+        "The paper's contribution is mathematical: generalization bounds, "
+        "convergence or sample-complexity analysis, or statistical estimation "
+        "theory. NOT: an empirical paper that reports a statistical test."
+    ),
+}
+
 TOP_K = 40          # highest TF-IDF scorers
 RANDOM_K = 20       # random draw from the remainder — the anti-bias arm
 SEED = 11

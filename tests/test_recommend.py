@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 POOLS = ROOT / "eval" / "corpus" / "topic_pools.json"
 QRELS_LLM = ROOT / "eval" / "corpus" / "topic_qrels_llm.json"
 QRELS = ROOT / "eval" / "corpus" / "topic_qrels.json"
+QRELS_GRADED = ROOT / "eval" / "corpus" / "topic_qrels_llm_graded.json"
 
 needs_labels = pytest.mark.skipif(
     not (POOLS.exists() and QRELS.exists()),
@@ -59,10 +60,11 @@ def test_pool_has_a_random_arm_that_finds_positives_tfidf_misses():
     scored against. The random arm is what makes the benchmark able to say the
     baseline was wrong.
     """
+    from eval.annotate import load_merged
     from eval.topics import TOP_K, TOPICS, TfIdf, load_papers
 
     pools = json.loads(POOLS.read_text())["pools"]
-    labels = json.loads(QRELS.read_text())
+    labels = load_merged()
     papers = load_papers()
     tfidf = TfIdf([p.text for p in papers])
 
@@ -83,22 +85,25 @@ def test_pool_has_a_random_arm_that_finds_positives_tfidf_misses():
 
 @needs_labels
 def test_every_pooled_paper_is_labelled_exactly_once():
+    from eval.annotate import load_merged
     pools = json.loads(POOLS.read_text())["pools"]
-    labels = json.loads(QRELS.read_text())
+    labels = load_merged()
     for topic, pool in pools.items():
         assert set(labels[topic]) == set(pool), f"{topic}: label set != pool"
 
 
 @needs_labels
-def test_labels_are_graded_and_not_degenerate():
+def test_labels_are_not_degenerate():
     """A label set that is 95% one class measures almost nothing."""
     from collections import Counter
 
-    labels = json.loads(QRELS.read_text())
+    from eval.annotate import load_merged
+
+    labels = load_merged()
     for topic, judgments in labels.items():
         dist = Counter(judgments.values())
-        assert set(dist) <= {0, 1, 2}
-        positive_rate = (dist[1] + dist[2]) / len(judgments)
+        assert set(dist) <= {0, 1}
+        positive_rate = dist[1] / len(judgments)
         assert 0.10 < positive_rate < 0.90, (
             f"{topic}: positive rate {positive_rate:.0%} is too skewed to be informative"
         )
@@ -117,11 +122,12 @@ def test_baselines_beat_random_and_the_heuristic_is_not_just_recency():
     sort — but ranking by date alone scores far worse, because the 0.20
     affinity term is carrying it.
     """
+    from eval.annotate import load_merged
     from eval.metrics import ndcg_at_k
     from eval.recommend import rank_production, rank_random, rank_recency
     from eval.topics import TOPICS, load_papers
 
-    qrels = json.loads(QRELS.read_text())
+    qrels = load_merged()
     papers = load_papers()
 
     def mean_ndcg(fn):
@@ -187,7 +193,7 @@ def test_annotator_is_self_consistent():
     """
     from eval.annotate import cohens_kappa
 
-    p1 = json.loads((ROOT / "eval" / "corpus" / "topic_qrels_llm.json").read_text())
+    p1 = json.loads(QRELS_GRADED.read_text())   # pass 1 AS IT WAS, graded
     p2 = json.loads(PASS2.read_text())
     a = [p1[t][pid] for t in p2 for pid in p2[t]]
     b = [p2[t][pid] for t in p2 for pid in p2[t]]
@@ -212,7 +218,7 @@ def test_disagreements_concentrate_in_the_adjacent_grade():
     """
     from eval.annotate import cohens_kappa
 
-    p1 = json.loads((ROOT / "eval" / "corpus" / "topic_qrels_llm.json").read_text())
+    p1 = json.loads(QRELS_GRADED.read_text())
     p2 = json.loads(PASS2.read_text())
 
     disagreements = [
@@ -286,3 +292,81 @@ def test_category_check_needs_no_annotator_judgment():
     paper = type("P", (), {"categories": ["cs.CV", "cs.LG"], "primary_category": "cs.CV"})()
     assert category_label(paper, "vision") == 1
     assert category_label(paper, "llm") == 0
+
+
+# ---------------------------------------------------------------------------
+# Binary rubric
+# ---------------------------------------------------------------------------
+
+@needs_labels
+def test_llm_labels_are_binary():
+    """The graded rubric was retired. Two independent measurements pointed at
+    grade 1: the LLM disagreed with itself only on grade-1 papers, and 7 of 12
+    of its grade-1 calls were the human's 0."""
+    labels = json.loads(QRELS_LLM.read_text())
+    grades = {g for topic in labels for g in labels[topic].values()}
+    assert grades <= {0, 1}, f"non-binary grades present: {sorted(grades)}"
+
+
+@needs_labels
+def test_merged_labels_are_on_a_single_scale():
+    """Regression test. Layering graded human labels over binary LLM ones
+    produced a file with grades {0,1,2} where the values meant different
+    things — a training target that is quietly inconsistent, which is worse
+    than one that is obviously wrong."""
+    from eval.annotate import load_merged
+
+    merged = load_merged()
+    grades = {g for topic in merged for g in merged[topic].values()}
+    assert len(grades) <= 2, f"merged labels mix scales: {sorted(grades)}"
+
+    declared = json.loads(QRELS.read_text()).get("_scale")
+    assert declared in {"binary", "graded"}, "merged file must declare its scale"
+
+
+@needs_labels
+def test_topic_definitions_exclude_what_the_keywords_would_catch():
+    """The search terms and the scope were conflated, and it caused a real
+    labelling error: cs.CL papers on reading comprehension and discourse were
+    graded relevant to 'large language models' because they share vocabulary.
+    Each definition now says what is OUT of scope, not just what is in."""
+    from eval.topics import TOPIC_DEFINITIONS, TOPICS
+
+    assert set(TOPIC_DEFINITIONS) == set(TOPICS)
+    for topic, definition in TOPIC_DEFINITIONS.items():
+        assert "NOT:" in definition, f"{topic} has no exclusion clause"
+
+
+@needs_labels
+def test_tightening_moved_the_ambiguous_band_not_the_clear_cases():
+    """A rubric change that also flipped confident labels would be a rewrite,
+    not a clarification. Grade 2 and grade 0 should survive intact."""
+    import subprocess
+
+    prior = subprocess.run(
+        ["git", "show", "HEAD:eval/corpus/topic_qrels_llm.json"],
+        capture_output=True, text=True, cwd=ROOT,
+    )
+    if prior.returncode != 0:
+        pytest.skip("no committed prior labels to compare against")
+
+    graded = json.loads(prior.stdout)
+    if {g for t in graded for g in graded[t].values()} <= {0, 1}:
+        pytest.skip("committed labels are already binary")
+
+    binary = json.loads(QRELS_LLM.read_text())
+    for topic in graded:
+        for pid, old in graded[topic].items():
+            if old == 2:
+                assert binary[topic][pid] == 1, f"{pid} flipped from confident-relevant"
+            elif old == 0:
+                assert binary[topic][pid] == 0, f"{pid} flipped from confident-irrelevant"
+
+
+def test_agreement_detects_a_rubric_mismatch():
+    """Comparing a binary label set against a graded one is a scale mismatch,
+    not a measurement — it understated kappa as 0.328 when the binary-scale
+    figure was 0.621."""
+    source = (ROOT / "eval" / "annotate.py").read_text()
+    assert "_binarize" in source
+    assert "DIFFERENT rubrics" in source

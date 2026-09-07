@@ -29,7 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from eval.topics import TOPICS, load_papers
+from eval.topics import TOPIC_DEFINITIONS, TOPICS, load_papers
 
 CORPUS = ROOT / "eval" / "corpus"
 POOL_PATH = CORPUS / "topic_pools.json"
@@ -42,6 +42,11 @@ LABELS = {
     # It is an upper bound: an annotator who cannot reproduce their own
     # judgments certainly cannot be trusted against someone else's.
     "llm_pass2": CORPUS / "topic_qrels_llm_pass2.json",
+    # Pass 1 as it stood under the GRADED rubric, kept so the self-consistency
+    # measurement made against it stays reproducible after `llm` was rewritten
+    # as binary. Comparing a binary set to a graded one is a scale mismatch,
+    # and silently doing it turned kappa 0.932 into 0.248.
+    "llm_graded": CORPUS / "topic_qrels_llm_graded.json",
     # The project owner. This is the only role that can produce the
     # human-vs-LLM kappa the label set actually needs.
     "human": CORPUS / "topic_qrels_human.json",
@@ -55,21 +60,31 @@ EXCLUSIONS = CORPUS / "topic_qrels_exclusions.json"
 # The rubric. Written down because "relevant" is not self-evident, and an
 # annotation guideline that lives only in someone's head cannot be audited,
 # handed over, or agreed with.
+# Binary, not graded. Two independent measurements pushed this change:
+#
+#   * the LLM annotator disagreed with ITSELF three times on a 75-paper
+#     re-annotation, and every disagreement involved grade 1;
+#   * human-vs-LLM kappa was 0.374 graded and 0.529 binarized, with the LLM's
+#     grade 1 landing on the human's 0 seven times out of twelve.
+#
+# The middle grade was not a shared category. It was where each annotator's
+# doubt went, and it differed by annotator. For a task that surfaces three to
+# five papers, "sort of relevant" also barely changes the ranking — so the
+# grade was carrying ambiguity without carrying information.
 GUIDELINE = """
-2 — ON TOPIC. The paper's main contribution is squarely within the topic. A
-    subscriber to this topic would want an episode about it.
+RELEVANT (1) — you would want an episode about this paper.
+    The paper's MAIN CONTRIBUTION is in the topic.
 
-1 — ADJACENT. The topic is a real but secondary part of the paper: applied to
-    this domain, evaluated on it, or a neighbouring subfield. Worth surfacing
-    only when little else is available.
+NOT RELEVANT (0) — you would consider this a mistake in your feed.
 
-0 — OFF TOPIC. A subscriber would consider this a mistake, even if it shares
-    generic machine-learning vocabulary.
+There is deliberately no middle option. If you are torn, ask the sharper
+question: would I be annoyed to receive this episode? If yes, it is 0.
 
-Judge the *paper*, not the wording. Shared jargon is not relevance: nearly every
-paper here says "model", "training" and "data".
+Judge the PAPER, not its vocabulary. Nearly every paper here says "model",
+"training" and "data"; sharing jargon with a topic is not being about it.
 """
 
+BINARY_GRADES = {"0", "1"}
 
 def load_pools() -> dict[str, list[str]]:
     if not POOL_PATH.exists():
@@ -167,7 +182,8 @@ def cmd_review(args) -> None:
 
     print(GUIDELINE)
     print("=" * 78)
-    print(f"TOPIC: {topic} — {TOPICS[topic]}")
+    print(f"TOPIC: {topic}")
+    print(f"\n  IN SCOPE: {TOPIC_DEFINITIONS[topic]}")
     print("=" * 78)
     if args.show_llm:
         print("\n!! --show-llm is ON. The LLM's grade is displayed BEFORE you answer,")
@@ -175,7 +191,7 @@ def cmd_review(args) -> None:
     else:
         print("\nBlind: the LLM's grade is hidden until after you answer, so your")
         print("judgment is independent. That is what makes kappa mean anything.\n")
-    print("Enter 0, 1 or 2.  's' skips this paper.  'q' saves and quits.\n")
+    print("Enter 1 (relevant) or 0 (not).  's' skips.  'q' saves and quits.\n")
 
     bucket = human.setdefault(topic, {})
     total = min(args.n, len(candidates))
@@ -206,23 +222,25 @@ def cmd_review(args) -> None:
             print(f"\n  (LLM said: {suggested})")
         while True:
             try:
-                raw = input("\n  your grade [0/1/2, s, q] > ").strip().lower()
+                raw = input("\n  relevant? [1/0, s, q] > ").strip().lower()
             except EOFError:
                 raw = "q"
-            if raw in {"0", "1", "2", "s", "q"}:
+            if raw in BINARY_GRADES | {"s", "q"}:
                 break
-            print("  -> enter 0, 1, 2, s or q")
+            print("  -> enter 1 (relevant), 0 (not), s or q")
         if raw == "q":
             break
         if raw == "s":
             continue
         bucket[pid] = int(raw)
         scored += 1
-        if int(raw) == suggested:
+        suggested_binary = 1 if suggested >= 1 else 0
+        if int(raw) == suggested_binary:
             agreed += 1
-            print(f"  = LLM also said {suggested}")
+            print(f"  = LLM also said {suggested_binary}")
         else:
-            print(f"  x LLM said {suggested}, you said {raw}  <- disagreement, this is the signal")
+            print(f"  x LLM said {suggested_binary} (graded {suggested}), you said {raw}"
+                  f"  <- disagreement, this is the signal")
 
     save_topic("human", topic, bucket)
     print("\n" + "=" * 78)
@@ -236,17 +254,53 @@ def cmd_review(args) -> None:
 
 
 def _rebuild_merged() -> None:
-    """Human labels win where they exist; LLM pass 1 fills the rest.
+    """Human labels win where they exist; LLM labels fill the rest.
 
-    Pass 2 deliberately does NOT feed the merged set — merging an annotator's
-    two attempts would destroy the disagreement signal that makes the
+    Pass 2 deliberately does NOT feed this — merging an annotator's two
+    attempts would destroy the disagreement signal that makes the
     self-consistency number meaningful.
+
+    The two roles can be on different rubrics: the LLM set was rewritten as
+    binary after the graded scale was found to be the source of most
+    disagreement, while a human set collected earlier still contains grade 1.
+    Layering one on the other produced a file with grades {0,1,2} where the
+    labels mean different things — a training target that is quietly
+    inconsistent, which is worse than one that is obviously wrong. When the
+    scales differ, the graded side is projected down to binary and the file
+    records that it happened.
     """
     llm, human = load_labels("llm"), load_labels("human")
+    llm_grades = {g for t in llm.values() for g in t.values()}
+    human_grades = {g for t in human.values() for g in t.values()}
+    project = bool(llm_grades) and bool(human_grades) and \
+        llm_grades <= {0, 1} and not human_grades <= {0, 1}
+
     merged: dict[str, dict[str, int]] = {}
     for topic in set(llm) | set(human):
-        merged[topic] = {**llm.get(topic, {}), **human.get(topic, {})}
-    MERGED.write_text(json.dumps(merged, indent=2, sort_keys=True))
+        h = human.get(topic, {})
+        if project:
+            h = {pid: (1 if g >= 1 else 0) for pid, g in h.items()}
+        merged[topic] = {**llm.get(topic, {}), **h}
+
+    payload = {
+        "_scale": "binary" if (llm_grades <= {0, 1}) else "graded",
+        "_note": (
+            "human labels were collected on the graded rubric and projected to "
+            "binary; re-annotate under the binary rubric for a clean set"
+            if project else "single rubric throughout"
+        ),
+        "labels": merged,
+    }
+    MERGED.write_text(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def load_merged() -> dict[str, dict[str, int]]:
+    """Read the merged labels, tolerating both the old bare format and the
+    current one that carries scale metadata."""
+    if not MERGED.exists():
+        return {}
+    data = json.loads(MERGED.read_text())
+    return data.get("labels", data) if isinstance(data, dict) else {}
 
 
 def cohens_kappa(a: list[int], b: list[int]) -> float:
@@ -268,6 +322,10 @@ def cohens_kappa(a: list[int], b: list[int]) -> float:
     return (observed - expected) / (1 - expected)
 
 
+def _binarize(grades: list[int]) -> list[int]:
+    return [1 if g >= 1 else 0 for g in grades]
+
+
 def cmd_agreement(args) -> None:
     llm, human = load_labels("llm"), load_labels(args.against)
     pairs_a, pairs_b = [], []
@@ -282,6 +340,14 @@ def cmd_agreement(args) -> None:
                             sum(x == y for x, y in zip(a, b)) / len(shared))
         pairs_a += a
         pairs_b += b
+
+    # The two roles can be on different rubrics — the LLM labels were rewritten
+    # as binary after the graded rubric was found to be the source of most
+    # disagreement, and a human set collected under the old rubric still has
+    # grade 1 in it. Comparing 0/1 against 0/1/2 directly is a scale mismatch,
+    # not a measurement, so say so and compare on the common scale.
+    scales = ({0, 1} == set(pairs_a) | {0, 1}, {0, 1} == set(pairs_b) | {0, 1})
+    mismatched = scales[0] != scales[1]
 
     if not pairs_a:
         print(f"No overlapping judgments between 'llm' and '{args.against}' yet.")
@@ -301,6 +367,26 @@ def cmd_agreement(args) -> None:
     raw = sum(x == y for x, y in zip(pairs_a, pairs_b)) / len(pairs_a)
     print("-" * 38)
     print(f"{'OVERALL':<10} {len(pairs_a):>5} {raw:>10.1%} {overall:>8.3f}")
+
+    if mismatched:
+        ba, bb = _binarize(pairs_a), _binarize(pairs_b)
+        k_bin = cohens_kappa(ba, bb)
+        raw_bin = sum(x == y for x, y in zip(ba, bb)) / len(ba)
+        print("\n  ** The two roles are on DIFFERENT rubrics (binary vs graded). **")
+        print("  The row above compares mismatched scales and understates agreement.")
+        print(f"  On the common binary scale: raw {raw_bin:.1%}, kappa {k_bin:.3f}")
+
+        # Where the mismatch actually bites: papers the human graded 1, a grade
+        # the binary rubric no longer has.
+        clean_a = [x for x, y in zip(pairs_a, pairs_b) if y != 1]
+        clean_b = [y for y in pairs_b if y != 1]
+        if clean_a:
+            k_clean = cohens_kappa(clean_a, _binarize(clean_b))
+            print(f"  Excluding the human's grade-1 papers (n={len(clean_a)}): "
+                  f"kappa {k_clean:.3f}")
+        print("\n  A clean number needs the human to re-annotate under the binary")
+        print("  rubric: `make annotate TOPIC=<t> REDO=1`.")
+        overall = k_bin
     print(f"\n  interpretation: {_kappa_reading(overall)}")
     if unjudged:
         print(f"\n  NOT covered by this kappa: {', '.join(unjudged)} — single-annotator.")

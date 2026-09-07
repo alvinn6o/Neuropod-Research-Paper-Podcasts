@@ -40,7 +40,10 @@ K = 5
 def load_qrels() -> dict[str, dict[str, int]]:
     if not QRELS.exists():
         raise SystemExit("no labels — run `python -m eval.annotate ingest ...` first")
-    return json.loads(QRELS.read_text())
+    data = json.loads(QRELS.read_text())
+    # Tolerates both the bare mapping and the current wrapper that records
+    # which rubric the labels are on.
+    return data.get("labels", data)
 
 
 def as_candidates(papers) -> list[PaperCandidate]:
