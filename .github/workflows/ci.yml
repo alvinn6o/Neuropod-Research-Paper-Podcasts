@@ -83,10 +83,6 @@ jobs:
             echo '```'
             pytest tests/test_eval_harness.py -q -s --no-header -k regressed 2>&1 | sed -n '/nDCG@10/,$p'
             echo '```'
-            echo '### Legacy single-paper fixture (kept for continuity)'
-            echo '```'
-            pytest tests/test_recall.py -q -s --no-header 2>&1 | sed -n '/recall@/,$p'
-            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail the build on retrieval regression

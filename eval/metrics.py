@@ -41,8 +41,8 @@ def recall_at_k(ranked: Sequence[str], relevant: dict[str, int], k: int) -> floa
 
 def hit_at_k(ranked: Sequence[str], relevant: dict[str, int], k: int) -> float:
     """1.0 if any relevant item is in the top k. This is what the existing
-    `test_recall.py` actually measures, despite the name — kept separate so the
-    two are never confused when comparing old numbers to new."""
+    the retired single-paper fixture actually measured, despite calling itself
+    recall — kept separate so the two are never confused."""
     positives = {cid for cid, grade in relevant.items() if grade >= 1}
     return 1.0 if positives.intersection(ranked[:k]) else 0.0
 

@@ -2,11 +2,11 @@
 
 These run in CI without API credentials — they exercise the retrieval scoring,
 chunking invariants, QA heuristic, and embedder behavior using the demo
-fallback adapters. For the LLM-as-judge eval (Ragas), see eval/ragas_eval.py."""
+fallback adapters. Retrieval quality itself is measured in
+tests/test_eval_harness.py against the frozen corpus."""
 from __future__ import annotations
 
 from pipeline.generate.embedder import HashEmbedder, get_embedder
-from pipeline.generate.qa_check import QAChecker
 from pipeline.generate.retriever import Retriever
 from pipeline.ingest.chunker import SectionAwareChunker
 
@@ -150,29 +150,36 @@ def test_retriever_answer_question_includes_citation_grounded_text():
 
 
 # ---------------------------------------------------------------------------
-# QA checker — script-vs-source grounding
+# The retired lexical QA check
 # ---------------------------------------------------------------------------
 
-def test_qa_verifier_passes_grounded_script():
-    chunks = [
-        _chunk("abstract", "We introduce a self-verification loop for small language models."),
-        _chunk("results", "Hallucinations dropped by 24 percent on document QA."),
-    ]
-    script = (
-        "Researchers introduce a self-verification loop for small language models. "
-        "Hallucinations dropped by 24 percent on document QA."
-    )
-    status, _ = QAChecker().verify(script, chunks)
-    assert status == "verified"
+def test_unigram_overlap_cannot_separate_real_scripts_from_fabricated_ones():
+    """Why the lexical grounding check was deleted rather than retuned.
 
+    It scored a script "grounded" when >=30% of its long tokens appeared in the
+    source. Measured on real model output that threshold flags everything:
+    three generated scripts scored 0.12, 0.17 and 0.12, because an LLM
+    paraphrases while the offline template the threshold was implicitly tuned
+    on copies source text verbatim.
 
-def test_qa_verifier_flags_ungrounded_script():
-    chunks = [
-        _chunk("abstract", "We study sparse routing layers for long context."),
-    ]
-    script = (
-        "The authors propose a novel diffusion model for protein folding "
-        "trained on AlphaFold's residue embeddings."
+    A check that fires on 100% of inputs carries no information. This test
+    reproduces the mechanism so the reasoning survives the deletion.
+    """
+    chunks = [{"section": "results", "content": "We observe a 24 percent reduction in hallucinated citations."}]
+
+    def overlap(script: str) -> float:
+        script_terms = {t for t in script.lower().split() if len(t) > 4}
+        source_terms = {t for c in chunks for t in c["content"].lower().split() if len(t) > 4}
+        return len(script_terms & source_terms) / max(len(script_terms), 1)
+
+    # Faithful, but paraphrased the way a model actually writes.
+    paraphrased = ("The authors demonstrate that hallucinated references drop "
+                   "by roughly a quarter under their proposed verification scheme.")
+    # Fabricated, but reuses source vocabulary.
+    fabricated = "We observe a 91 percent reduction in hallucinated citations."
+
+    assert overlap(paraphrased) < 0.30, "a faithful paraphrase falls below the threshold"
+    assert overlap(fabricated) > overlap(paraphrased), (
+        "the metric rewards copying vocabulary, not being correct — it scores a "
+        "fabricated claim higher than a faithful paraphrase"
     )
-    status, _ = QAChecker().verify(script, chunks)
-    assert status == "flagged"

@@ -1,7 +1,8 @@
-.PHONY: help install dev worker test test-pg typecheck build clean reset eval eval-judge corpus embed eval-openai reranker recommend frontier tune annotate dedupe deps-audit
+.PHONY: help demo install dev worker test test-pg typecheck build clean reset eval corpus embed eval-openai reranker recommend frontier tune annotate dedupe deps-audit
 
 help:
 	@echo "Targets:"
+	@echo "  demo        seed episodes and run the app (no API keys needed)"
 	@echo "  install     install backend + frontend deps"
 	@echo "  dev         run API on :8000 (uvicorn --reload)"
 	@echo "  worker      run pipeline worker (needs USER_ID=...)"
@@ -12,7 +13,6 @@ help:
 	@echo "  build       build both Docker images"
 	@echo "  reset       wipe local SQLite + audio cache"
 	@echo "  eval        retrieval ablation over the frozen corpus (free, deterministic)"
-	@echo "  eval-judge  LLM-as-judge eval (costs API credits, requires OPENAI_API_KEY)"
 	@echo "  corpus      rebuild the frozen eval corpus (fetches PDFs from arXiv)"
 	@echo "  embed       cache real OpenAI embeddings for the corpus (~$$0.04)"
 	@echo "  eval-openai ablation using real embeddings instead of the hash fallback"
@@ -26,6 +26,15 @@ help:
 install:
 	pip install -r requirements-dev.txt
 	cd frontend && npm ci --ignore-scripts
+
+# One command, no API keys, no network. Seeds episodes first so the UI has
+# content immediately rather than waiting on a pipeline run on camera.
+demo:
+	python scripts/demo.py
+	@echo ""
+	@echo "  Seeded. Now run the two servers:"
+	@echo "    make dev                       # API on :8000"
+	@echo "    cd frontend && npm run dev     # UI  on :3000"
 
 dev:
 	uvicorn api.main:app --reload --port 8000
@@ -66,8 +75,6 @@ reset:
 eval:
 	python -m eval.harness
 
-eval-judge:
-	python -m eval.ragas_eval
 
 corpus:
 	python -m eval.corpus_build build

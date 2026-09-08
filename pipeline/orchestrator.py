@@ -11,7 +11,6 @@ from .discover.semantic_scholar import SemanticScholarClient
 from .generate.embedder import EmbeddingError, get_embedder
 from .generate.claims import check_script
 from .generate.facets import build_facet_queries, facet_names
-from .generate.qa_check import QAChecker
 from .generate.retriever import PROMPT_CHUNK_LIMIT, RETRIEVER_VERSION, Retriever
 from .generate.scriptwriter import ScriptWriter
 from .ingest.chunker import SectionAwareChunker
@@ -45,7 +44,6 @@ def build_demo_payload(
     embedder = get_embedder()
     retriever = Retriever(embedder=embedder)
     writer = ScriptWriter()
-    checker = QAChecker()
     audio = AudioProcessor()
 
     affinity_scores = compute_affinity(feedback_events or [], prior_episodes or [])
@@ -120,25 +118,25 @@ def build_demo_payload(
         scored = retriever.retrieve_multi(chunk_dicts, facet_queries, limit=PROMPT_CHUNK_LIMIT)
         retrieved = [row["chunk"] for row in scored]
         script, llm_label = writer.write(candidate, retrieved, topics)
-        qa_status, qa_notes = checker.verify(script, chunk_dicts)
 
         # Deterministic generation checks, $0 and reproducible. The most
         # damaging failure this system can have is a fabricated number: a
         # script that confidently states a result the paper never reported.
         # Grounding context is the chunks that reached the prompt plus the
         # abstract, which the prompt also supplies.
+        # Replaced a unigram-overlap check that scored 0.12-0.17 on real
+        # model output against a 0.30 threshold — it flagged 100% of generated
+        # scripts, because an LLM paraphrases while the offline template the
+        # threshold was implicitly tuned on copies source text verbatim. A
+        # check that fires on every input carries no information.
+        #
+        # A `flagged` episode still ships — a product decision, not an
+        # oversight — but the reason is now specific enough to act on
+        # ("3 of 7 numbers unsupported: 94%, 12.7x").
         claims = check_script(
             script, retrieved[:PROMPT_CHUNK_LIMIT], abstract=candidate.abstract
         )
-        # Unlike the lexical-overlap check, this one actually changes
-        # qa_status. A `flagged` episode still ships — that is a product
-        # decision, not an oversight — but the reason is now specific enough to
-        # act on ("3 of 7 numbers unsupported: 94%, 12.7x") rather than the
-        # previous "terms may not be fully grounded".
-        claim_status, claim_note = _grade_claims(claims, candidate.arxiv_id)
-        if claim_status == "flagged":
-            qa_status = "flagged"
-            qa_notes = f"{claim_note} {qa_notes}".strip()
+        qa_status, qa_notes = _grade_claims(claims, candidate.arxiv_id)
 
         retrieval_trace = [
             {

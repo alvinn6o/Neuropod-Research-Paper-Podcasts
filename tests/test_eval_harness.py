@@ -7,8 +7,8 @@ Two different jobs in one file:
     numbers;
   * a gate that fails when retrieval regresses against the frozen corpus.
 
-The gate is the point of Phase 1. Before it, `eval/ragas_eval.py` printed three
-floats to stdout on 3 live-fetched papers and nothing could fail.
+The gate is the point. The evaluation it replaced printed three floats to
+stdout for 3 live-fetched papers, so no change could ever fail a build.
 """
 from __future__ import annotations
 
@@ -64,7 +64,8 @@ def test_ndcg_is_zero_when_nothing_relevant_exists():
 
 
 def test_recall_and_hit_differ():
-    """`test_recall.py` calls hit@k 'recall' — they are not the same metric."""
+    """Recall@k and hit@k are different metrics and were previously conflated:
+    the retired fixture called hit@k "recall"."""
     qrels = {"a": 1, "b": 1}
     assert recall_at_k(["a", "x"], qrels, 2) == 0.5
     assert hit_at_k(["a", "x"], qrels, 2) == 1.0

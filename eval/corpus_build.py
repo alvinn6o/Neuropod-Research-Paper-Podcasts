@@ -7,8 +7,8 @@ Two phases, deliberately separated:
 
 The split is the whole point. A benchmark that re-queries arXiv at run time
 measures a different corpus every run, so a metric change cannot be attributed
-to a code change — which is the flaw in the current `eval/ragas_eval.py`
-(it claims a "curated held-out set" in a comment and then calls a live search).
+to a code change — which was the flaw in the evaluation this replaced: it
+claimed a "curated held-out set" and then called a live search.
 Here the corpus is a committed artifact: papers.txt pins the ids, and
 manifest.json pins each PDF's sha256, so a silently revised paper shows up as a
 hash mismatch rather than as a mysterious metric drift.
