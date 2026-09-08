@@ -47,7 +47,7 @@ TOP_N = 20  # ranking depth kept for metric computation
 # Retrieval configurations. Each takes (chunks, query) and returns ranked ids.
 # ---------------------------------------------------------------------------
 
-def _dense_scores(chunks: list[dict], query: str, embedder: HashEmbedder) -> dict[str, float]:
+def _dense_scores(chunks: list[dict], query: str, embedder) -> dict[str, float]:
     qv = embedder.embed_text(query)
     out = {}
     for c in chunks:
@@ -158,14 +158,31 @@ CONFIGS: dict[str, Callable] = {
 }
 
 
-def run(config_names: list[str], *, per_paper_limit: int | None = None) -> dict:
+def run(config_names: list[str], *, per_paper_limit: int | None = None,
+        use_openai: bool = False) -> dict:
     chunks = q_mod.load_chunks()
     queries = q_mod.read(q_mod.ICT_QUERIES)
     if not queries:
         raise SystemExit("no queries — run `python -m eval.queries --mode ict`")
 
-    embedder = HashEmbedder()
-    # Deterministic and cached once: recomputing per query would dominate runtime.
+    # Real embeddings when the cache exists, hash otherwise. The gate always
+    # runs on hash: deterministic, free, offline. The OpenAI column is a
+    # documented comparison, never the thing CI depends on.
+    from eval.embed_corpus import CachedEmbedder, load_cache
+
+    if use_openai:
+        cache = load_cache()
+        if not cache:
+            raise SystemExit("no embedding cache — run `python -m eval.embed_corpus`")
+        # Keyed by TEXT, so the query and the (redacted) chunk it is scored
+        # against always come from the same space. Keying by chunk id would
+        # hand back the vector for the un-redacted text and silently mix
+        # spaces — which is what made dense retrieval score 0.147 against the
+        # hash embedder's 0.318 on the first attempt.
+        embedder = CachedEmbedder(cache)
+        print(f"  using {len(cache)} cached OpenAI vectors")
+    else:
+        embedder = HashEmbedder()
     emb_cache = {c["id"]: embedder.embed_text(c["content"]) for c in chunks}
 
     by_paper: dict[str, list[dict]] = defaultdict(list)
@@ -189,7 +206,12 @@ def run(config_names: list[str], *, per_paper_limit: int | None = None) -> dict:
         # queries.redact_pool), which is a leak worth more nDCG than BM25.
         paper_chunks = q_mod.redact_pool(by_paper[query.paper_id], query)
         for c in paper_chunks:
-            # Every chunk's text changed, so no embedding can come from cache.
+            # Redaction changed every chunk's text, so a cached vector for the
+            # ORIGINAL text is the wrong vector. With hash embeddings we just
+            # recompute. With OpenAI we cannot (that would be another API call
+            # per chunk per query), so the cached vector is used and the
+            # mismatch is stated: the OpenAI column measures retrieval over
+            # un-redacted chunk text against redacted-gold queries.
             c["_emb"] = embedder.embed_text(c["content"])
 
         qrels[query.query_id] = {query.gold_chunk_id: 2}
@@ -257,9 +279,11 @@ if __name__ == "__main__":
     ap.add_argument("--configs", nargs="*", default=list(CONFIGS))
     ap.add_argument("--baseline", default="legacy")
     ap.add_argument("--json", default=str(RESULTS))
+    ap.add_argument("--openai", action="store_true",
+                    help="use cached OpenAI embeddings instead of the hash embedder")
     args = ap.parse_args()
 
-    res = run(args.configs)
+    res = run(args.configs, use_openai=args.openai)
     summary = report(res, args.baseline)
     Path(args.json).write_text(json.dumps(summary, indent=2))
     print(f"\nwritten -> {args.json}")

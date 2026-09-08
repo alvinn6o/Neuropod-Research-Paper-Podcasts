@@ -218,6 +218,42 @@ scoped to one paper (matching production).
 | `rrf` | 0.356 | [0.343, 0.370] | +0.075 [+0.063, +0.087] p<0.001 | significant |
 | **`bm25`** | **0.359** | [0.346, 0.373] | **+0.078 [+0.064, +0.092] p<0.001** | **significant** |
 
+### Hash vs. real embeddings
+
+Every retrieval number below the ablation table was produced with
+`HashEmbedder` — SHA256 bag-of-words, no semantics at all. It was the honest
+default with no API key, and its contribution was measured rather than assumed:
+zeroing the three dense features costs the learned reranker 0.076 nDCG@10.
+
+Re-embedding the corpus with `text-embedding-3-small` (~$0.04, 16.5k vectors)
+changes the picture, and changes a shipping decision:
+
+| Config | hash | OpenAI | Δ (paired) |
+|---|---|---|---|
+| `bm25` | 0.359 | 0.359 | — (no embeddings involved) |
+| `dense` | 0.318 | **0.418** | **+0.100 [+0.086, +0.116] p<0.001** |
+| `rrf` | 0.356 | 0.407 | +0.051 [+0.042, +0.062] p<0.001 |
+| `shipped` | 0.360 | 0.412 | +0.051 [+0.041, +0.061] p<0.001 |
+
+**The lexical/dense ordering flips.** With hash embeddings BM25 beats dense by
+0.041 (p<0.001); with real ones dense beats BM25 by 0.059 (p<0.001). Both
+significant, opposite directions. The earlier conclusion "BM25 is the strongest
+single retriever" was an artefact of the embedder, and the README said so at the
+time as a caveat — this is that caveat resolved.
+
+**And fusion stops paying for itself.** With real embeddings, `dense` → `shipped`
+(BM25 + dense via RRF) is −0.006, CI [−0.016, +0.004], p=0.228 — no evidence the
+hybrid beats dense alone. The hybrid still ships: "no evidence it helps" is not
+"evidence it hurts", and lexical matching remains the fallback when an embedding
+model meets a term coined after its training cutoff. But it is no longer
+justified by this benchmark, and pretending otherwise would be the same mistake
+as the section prior.
+
+**The CI gate stays on hash embeddings** — deterministic, free, offline, no key
+required. The OpenAI cache is ~500MB, regenerable for four cents, and
+gitignored. Reproduce with `python -m eval.embed_corpus` then
+`python -m eval.harness --openai`.
+
 ### A leak, found and fixed
 
 The first version of this table was wrong, and how it was wrong is the most

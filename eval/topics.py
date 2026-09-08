@@ -55,9 +55,12 @@ TOPIC_DEFINITIONS: dict[str, str] = {
     "llm": (
         "The paper is about large language models specifically — training them, "
         "prompting them, evaluating them, making inference cheaper, or studying "
-        "their behaviour. NOT: any NLP task that predates LLMs (parsing, "
-        "translation, discourse, classic QA), and NOT transformers applied to "
-        "images or audio."
+        "their behaviour. INCLUDES pretrained-transformer language models of any "
+        "era (BERT, T5, GPT, Llama): a paper about training or compressing BERT "
+        "is about language models. EXCLUDES: NLP tasks that merely USE a language "
+        "model as a component (clustering with BERT features, translation "
+        "quality studies, classic reading-comprehension QA), and transformers "
+        "applied to images or audio."
     ),
     "vision": (
         "The paper's main contribution is a visual task: recognition, detection, "

@@ -77,7 +77,12 @@ def test_pool_has_a_random_arm_that_finds_positives_tfidf_misses():
             if labels[topic].get(pid, 0) >= 1:
                 found_outside_tfidf += 1
 
-    assert found_outside_tfidf >= 10, (
+    # Was 22 under the graded rubric; the binary rubric moved 40 of 46 former
+    # grade-1 papers to 0 and most of those sat in the random arm. The arm
+    # still surfaces positives TF-IDF's top-40 never showed, which is the
+    # property being asserted — the threshold tracks the current rubric, not
+    # the count from a retired one.
+    assert found_outside_tfidf >= 6, (
         f"only {found_outside_tfidf} positives came from the random arm — the pool "
         "may be too TF-IDF-shaped to detect its misses"
     )
@@ -334,7 +339,10 @@ def test_topic_definitions_exclude_what_the_keywords_would_catch():
 
     assert set(TOPIC_DEFINITIONS) == set(TOPICS)
     for topic, definition in TOPIC_DEFINITIONS.items():
-        assert "NOT:" in definition, f"{topic} has no exclusion clause"
+        assert any(marker in definition for marker in ("NOT:", "EXCLUDES:")), (
+            f"{topic} has no exclusion clause — saying only what is IN scope is "
+            "what let keyword-sharing papers be graded relevant"
+        )
 
 
 @needs_labels

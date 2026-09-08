@@ -1,4 +1,4 @@
-.PHONY: help install dev worker test test-pg typecheck build clean reset eval eval-judge corpus reranker recommend frontier tune annotate dedupe deps-audit
+.PHONY: help install dev worker test test-pg typecheck build clean reset eval eval-judge corpus embed eval-openai reranker recommend frontier tune annotate dedupe deps-audit
 
 help:
 	@echo "Targets:"
@@ -14,6 +14,8 @@ help:
 	@echo "  eval        retrieval ablation over the frozen corpus (free, deterministic)"
 	@echo "  eval-judge  LLM-as-judge eval (costs API credits, requires OPENAI_API_KEY)"
 	@echo "  corpus      rebuild the frozen eval corpus (fetches PDFs from arXiv)"
+	@echo "  embed       cache real OpenAI embeddings for the corpus (~$$0.04)"
+	@echo "  eval-openai ablation using real embeddings instead of the hash fallback"
 	@echo "  reranker    train + evaluate the learned reranker on held-out papers"
 	@echo "  recommend   Task A: paper-recommendation baselines vs labels"
 	@echo "  frontier    cross-encoder quality/latency frontier (downloads a model)"
@@ -70,6 +72,14 @@ eval-judge:
 corpus:
 	python -m eval.corpus_build build
 	python -m eval.queries --mode ict
+
+# ~$0.04 and ~500MB, gitignored. CI keeps running on hash embeddings so the
+# gate stays deterministic, free and offline.
+embed:
+	python -m eval.embed_corpus
+
+eval-openai:
+	python -m eval.harness --openai
 
 reranker:
 	python -m eval.train_reranker

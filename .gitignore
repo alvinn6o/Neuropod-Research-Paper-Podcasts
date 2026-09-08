@@ -51,3 +51,6 @@ build/
 eval/corpus/_pdf_cache/
 eval/corpus/_llm_query_cache.json
 eval/corpus/_emb_cache/
+
+# Regenerable for ~$0.02; CI runs on deterministic hash embeddings instead.
+eval/corpus/_openai_embeddings.json
