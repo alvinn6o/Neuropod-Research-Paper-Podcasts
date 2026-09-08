@@ -50,20 +50,29 @@ class PDFExtractor:
         self.max_pdf_bytes = max_pdf_bytes
         self.fetch_timeout = fetch_timeout
 
-    def extract_sections(self, candidate: PaperCandidate) -> dict[str, str]:
+    def extract_sections(
+        self, candidate: PaperCandidate, *, pdf_bytes: Optional[bytes] = None
+    ) -> dict[str, str]:
+        """Extract labelled sections from a paper.
+
+        `pdf_bytes` lets a caller supply already-downloaded bytes instead of
+        re-fetching. The evaluation corpus builder caches PDFs on disk and would
+        otherwise hit arXiv twice per paper for the same file.
+        """
         # Seed-catalog fast path: the demo PaperCandidate ships pre-extracted sections.
         if candidate.sections and any(len(v) > 200 for v in candidate.sections.values()):
             return candidate.sections
 
-        if candidate.pdf_url:
-            try:
-                pdf_bytes = self._fetch(candidate.pdf_url)
-            except Exception as exc:
-                logger.warning(
-                    "pdf fetch failed for %s (%s); falling back to abstract-only chunks",
-                    candidate.arxiv_id, exc,
-                )
-                pdf_bytes = None
+        if pdf_bytes or candidate.pdf_url:
+            if pdf_bytes is None:
+                try:
+                    pdf_bytes = self._fetch(candidate.pdf_url)
+                except Exception as exc:
+                    logger.warning(
+                        "pdf fetch failed for %s (%s); falling back to abstract-only chunks",
+                        candidate.arxiv_id, exc,
+                    )
+                    pdf_bytes = None
 
             if pdf_bytes:
                 try:

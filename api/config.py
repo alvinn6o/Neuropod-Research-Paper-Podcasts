@@ -52,6 +52,13 @@ class Settings:
     daily_pipeline_limit: int
     daily_ask_limit: int
     cors_origins: list[str]
+    # Spend caps. Per-user daily limits above are not a spend bound while
+    # identities are free to create, so these are the ones that actually cap
+    # blast radius on a public demo. Exceeding a cap degrades to demo mode
+    # rather than erroring.
+    monthly_budget_usd: float
+    daily_budget_usd: float
+    global_daily_run_limit: int
 
 
 @lru_cache(maxsize=1)
@@ -82,4 +89,7 @@ def get_settings() -> Settings:
         daily_pipeline_limit=int(os.getenv("NEUROPOD_DAILY_PIPELINE_LIMIT", "20")),
         daily_ask_limit=int(os.getenv("NEUROPOD_DAILY_ASK_LIMIT", "200")),
         cors_origins=cors_origins,
+        monthly_budget_usd=float(os.getenv("NEUROPOD_MONTHLY_BUDGET_USD", "5.0")),
+        daily_budget_usd=float(os.getenv("NEUROPOD_DAILY_BUDGET_USD", "1.0")),
+        global_daily_run_limit=int(os.getenv("NEUROPOD_GLOBAL_DAILY_RUN_LIMIT", "60")),
     )

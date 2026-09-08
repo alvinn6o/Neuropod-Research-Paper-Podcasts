@@ -3,6 +3,8 @@ from __future__ import annotations
 from uuid import uuid4
 
 from ..models import PaperChunk
+from .tokenizer import backend as token_backend
+from .tokenizer import count_tokens
 
 
 class SectionAwareChunker:
@@ -32,11 +34,18 @@ class SectionAwareChunker:
         return chunks
 
     def _build_chunk(self, paper_id: str, section: str, index: int, text: str) -> PaperChunk:
+        content = text.strip()
         return PaperChunk(
             id=str(uuid4()),
             paper_id=paper_id,
             section=section,
             chunk_index=index,
-            content=text.strip(),
-            token_count=len(text.split()),
+            content=content,
+            # Real token count, not len(text.split()). The window below is still
+            # measured in words: switching the window to tokens changes chunk
+            # boundaries, and therefore retrieval, and there is no evaluation
+            # harness yet to measure whether that helps. That is a Phase 2 change
+            # to be made against a benchmark, not a drive-by here.
+            token_count=count_tokens(content),
+            token_source=token_backend(),
         )

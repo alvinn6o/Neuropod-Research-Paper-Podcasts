@@ -88,6 +88,11 @@ def init_schema() -> None:
 # so this is safe to call against schemas at any version.
 _MIGRATIONS = [
     "ALTER TABLE pipeline_jobs ADD COLUMN skipped_count INT NOT NULL DEFAULT 0",
+    # Embedding + token provenance. Without these, two embedding models can
+    # share one index and nothing records which vector came from where.
+    "ALTER TABLE paper_chunks ADD COLUMN token_source TEXT NOT NULL DEFAULT 'unknown'",
+    "ALTER TABLE paper_chunks ADD COLUMN embedding_model TEXT",
+    "ALTER TABLE paper_chunks ADD COLUMN embedding_dim INT",
 ]
 
 

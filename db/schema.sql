@@ -70,7 +70,14 @@ CREATE TABLE IF NOT EXISTS paper_chunks (
   chunk_index  INT NOT NULL,
   content      TEXT NOT NULL,
   token_count  INT NOT NULL,
+  token_source TEXT NOT NULL DEFAULT 'unknown',   -- tiktoken:<enc> | estimate:<rule>
   embedding    vector(1536),
+  -- Which model produced `embedding`. NOT a cosmetic label: vectors from two
+  -- different models are not comparable, so a mixed index silently returns
+  -- garbage. Retrieval filters on this, and NULL embedding means "not embedded"
+  -- rather than a zero vector.
+  embedding_model TEXT,
+  embedding_dim   INT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -162,3 +169,53 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   count     INT NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, bucket, day)
 );
+
+-- ============================================================================
+-- LLM call ledger. One row per provider call, including failures.
+-- Feeds: cost-per-episode, the monthly budget kill-switch, p50/p95 latency,
+-- and the cost side of any model-routing decision.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS llm_calls (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id             UUID REFERENCES users(id) ON DELETE SET NULL,
+  purpose             TEXT NOT NULL,        -- script | ask | judge | embed
+  provider            TEXT NOT NULL,        -- anthropic | openai | bedrock | demo
+  model               TEXT NOT NULL,
+  prompt_tokens       INT NOT NULL DEFAULT 0,
+  completion_tokens   INT NOT NULL DEFAULT 0,
+  cached_read_tokens  INT NOT NULL DEFAULT 0,
+  cached_write_tokens INT NOT NULL DEFAULT 0,
+  cost_usd            DOUBLE PRECISION,     -- NULL = model has no price entry
+  latency_ms          INT NOT NULL DEFAULT 0,
+  ok                  BOOLEAN NOT NULL DEFAULT TRUE,
+  status              INT,
+  error               TEXT,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_calls_created ON llm_calls(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_llm_calls_user_created ON llm_calls(user_id, created_at DESC);
+
+-- ============================================================================
+-- Retrieval traces. Which chunks actually grounded each script, and why.
+-- The orchestrator used to compute this, pass it to the writer, and drop it —
+-- so there was no way to attribute a claim to a chunk, replay a retrieval
+-- offline, or build training data for a reranker. This is that record.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS retrieval_traces (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  episode_id        UUID NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+  chunk_id          UUID NOT NULL,
+  query_text        TEXT NOT NULL,
+  retriever_version TEXT NOT NULL,
+  rank_position     INT NOT NULL,          -- 0-based, after scoring
+  dense_score       DOUBLE PRECISION,
+  sparse_score      DOUBLE PRECISION,
+  section_bonus     DOUBLE PRECISION,
+  final_score       DOUBLE PRECISION NOT NULL,
+  used_in_prompt    BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_traces_episode ON retrieval_traces(episode_id, rank_position);
+CREATE INDEX IF NOT EXISTS idx_traces_chunk ON retrieval_traces(chunk_id);

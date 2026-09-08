@@ -74,6 +74,38 @@ export type StatusResponse = {
     error?: string | null
     status?: number | null
   }>
+  // Spend against the configured caps. Always present, including when
+  // unauthenticated: a visitor seeing template scripts should be able to tell
+  // that the budget is exhausted rather than that the app is broken.
+  budget: BudgetState
+  // Per-model token/cost rollup for the current month. Authenticated only.
+  spend?: SpendSummary
+}
+
+export type BudgetState = {
+  month_usd: number
+  day_usd: number
+  monthly_budget_usd: number
+  daily_budget_usd: number
+  global_runs_today: number
+  global_daily_run_limit: number
+  llm_enabled: boolean
+  reasons: string[]
+}
+
+export type SpendSummary = {
+  month_usd: number
+  day_usd: number
+  by_model: Array<{
+    purpose: string
+    provider: string
+    model: string
+    calls: number
+    prompt_tokens: number
+    completion_tokens: number
+    cost_usd: number
+    failures: number
+  }>
 }
 
 export type JobResponse = {

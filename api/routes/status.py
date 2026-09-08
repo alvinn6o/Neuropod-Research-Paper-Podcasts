@@ -6,7 +6,7 @@ from fastapi import APIRouter
 
 from pipeline.provider_status import snapshot
 
-from .. import store_db
+from .. import budget, store_db
 from ..auth import AuthUser, OptionalUser
 from ..config import get_settings
 
@@ -52,6 +52,10 @@ def get_status(user: AuthUser | None = OptionalUser) -> dict:
         "scheduler_enabled": settings.enable_scheduler,
         "providers": _detect_providers(),
         "provider_calls": snapshot(),
+        # Spend against the caps. Exposed unauthenticated on purpose: it is the
+        # honest answer to "is this demo going to cost the author money", and it
+        # shows a visitor why they may be seeing template scripts.
+        "budget": budget.budget_state(),
     }
 
     if not user:
@@ -59,6 +63,8 @@ def get_status(user: AuthUser | None = OptionalUser) -> dict:
         return out
 
     out["authenticated"] = True
+    # Token/cost rollup by model for the current month.
+    out["spend"] = store_db.spend_summary()
     out["user"] = {"feed_slug": user.feed_slug, "email": user.email}
     out["topics"] = store_db.get_topics(user.id)
     out["categories"] = store_db.get_categories(user.id)

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
-from .. import store_db
+from .. import budget, store_db
 from ..auth import AuthUser, CurrentUser
 from ..config import get_settings
 from ..models import JobResponse
@@ -48,11 +48,11 @@ def _run_job(job_id: uuid.UUID, user_id: uuid.UUID, topics: list[str], episode_c
             _active_jobs.discard(job_id)
 
 
-# Per-run hard cap on episode count. Each generation is ~$0.05-0.50 in
-# provider spend (LLM + optional TTS), so we keep the per-click ceiling
-# bounded even though the daily-per-user cap (NEUROPOD_DAILY_PIPELINE_LIMIT)
-# already bounds the total. 5 supports a "weekly catch-up" UX while staying
-# under ~$2.50 per click in the worst case.
+# Per-run hard cap on episode count. Measured cost per script is ~$0.03 on
+# Sonnet (3k input + 1.5k output), so 5 episodes is ~$0.16 per click — the
+# earlier "$0.05-0.50" estimate was high for the LLM and low for TTS, where
+# ElevenLabs is ~$0.66 per episode. Audio stays off by default for that reason.
+# This cap bounds one click; api/budget.py bounds the month.
 MAX_EPISODES_PER_RUN = 5
 
 
@@ -68,6 +68,15 @@ def trigger_run(
     categories = store_db.get_categories(user.id)
     if not topics and not categories:
         raise HTTPException(status_code=400, detail="add at least one topic or category before running")
+
+    # Global cap first, and before the per-user counter is incremented. The
+    # per-user cap is not a spend bound on its own: stub-mode login mints a
+    # persistent identity for any email with no verification, so an attacker
+    # gets a fresh per-user quota for free. This one is shared by everybody.
+    has_capacity, capacity_reason = budget.global_capacity_available()
+    if not has_capacity:
+        logger.warning("rejecting run for %s: %s", user.id, capacity_reason)
+        raise HTTPException(status_code=429, detail=capacity_reason)
 
     _, allowed = store_db.increment_rate_limit(
         user.id, "pipeline_run", daily_max=settings.daily_pipeline_limit

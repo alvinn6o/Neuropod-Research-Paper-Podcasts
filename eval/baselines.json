@@ -1,0 +1,49 @@
+{
+  "_comment": [
+    "Frozen retrieval baselines. A drop of more than `tolerance` below `value`",
+    "fails CI. Update deliberately, in the PR that causes the change, with the",
+    "paired-bootstrap delta in the commit message \u2014 never to green a red build.",
+    "",
+    "168-paper corpus, 1,935 ICT queries, hash embeddings, retrieval scoped to",
+    "one paper (matching production).",
+    "",
+    "'shipped' tracks whatever Retriever does today and is the config the gate",
+    "protects. 'legacy' is a frozen reimplementation of the pre-hybrid scoring",
+    "(raw term-frequency cosine + hand-set section prior) kept so the historical",
+    "comparison stays reproducible after production moves on.",
+    "",
+    "tolerance is 0.005, not the CI half-width (~0.013): the point estimate is",
+    "deterministic, so run-to-run variance is zero and the gate only absorbs",
+    "rounding. Verified by breaking retrieval on purpose \u2014 disabling IDF costs",
+    "0.013, which a 0.02 tolerance let through."
+  ],
+  "corpus": {
+    "papers": 168,
+    "queries": 1935,
+    "query_source": "ict",
+    "embedder": "hash-bow-v1"
+  },
+  "tolerance": 0.005,
+  "configs": {
+    "legacy": {
+      "ndcg@10": 0.2806,
+      "mrr": 0.2123,
+      "hit@1": 0.0744
+    },
+    "shipped": {
+      "ndcg@10": 0.3603,
+      "mrr": 0.2766,
+      "hit@1": 0.1023
+    },
+    "bm25": {
+      "ndcg@10": 0.359,
+      "mrr": 0.2791,
+      "hit@1": 0.1075
+    }
+  },
+  "leak_guard": {
+    "_comment": "Ranking by chunk length alone must not beat random ordering.",
+    "ndcg@10_by_length_alone": 0.0746,
+    "ndcg@10_random": 0.1302
+  }
+}

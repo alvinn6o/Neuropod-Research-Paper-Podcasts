@@ -31,7 +31,14 @@ class PaperChunk:
     chunk_index: int
     content: str
     token_count: int
+    # How token_count was derived ("tiktoken:cl100k_base" vs an estimate).
+    # Carried alongside the number so an exact count is never confused with an
+    # approximate one.
+    token_source: str = "unknown"
     embedding: list[float] = field(default_factory=list)
+    # Which model produced `embedding`. Empty means not embedded.
+    embedding_model: str = ""
+    embedding_dim: int = 0
 
     def to_dict(self) -> dict:
         return asdict(self)

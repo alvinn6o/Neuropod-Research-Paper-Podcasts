@@ -7,9 +7,35 @@ import time
 from .._http import ProviderError, post_json
 from ..models import PaperCandidate
 from ..provider_status import record_failure, record_success
+from ..usage import LLMCall, anthropic_usage, llm_allowed, openai_usage, record
 from .bedrock import BedrockClient
 
 logger = logging.getLogger("neuropod.scriptwriter")
+
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
+OPENAI_MODEL = "gpt-4o-mini"
+
+
+def _extract_text(payload: dict, path: str) -> str:
+    """Pull generated text out of a provider response, or raise ProviderError.
+
+    Previously this was a bare `result["content"][0]["text"]`. A provider that
+    returns an unexpected shape (an error object with HTTP 200, a changed schema,
+    a refusal stop_reason with no content block) raised KeyError/IndexError —
+    which is not ProviderError, so it blew straight past every `except
+    ProviderError` in the fallback chain and failed the whole job instead of
+    trying the next provider.
+    """
+    try:
+        if path == "anthropic":
+            text = payload["content"][0]["text"]
+        else:
+            text = payload["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ProviderError(path, None, f"unexpected response shape: {str(payload)[:300]}") from exc
+    if not isinstance(text, str) or not text.strip():
+        raise ProviderError(path, None, "provider returned empty content")
+    return text.strip()
 
 SYSTEM_PROMPT = (
     "You are a senior research analyst writing 6-9 minute audio-ready scripts for a daily AI research "
@@ -38,6 +64,14 @@ class ScriptWriter:
         audience_topics: list[str],
     ) -> tuple[str, str]:
         prompt = self._build_prompt(candidate, retrieved_chunks, audience_topics)
+
+        # Spend kill-switch. When the monthly budget is exhausted we degrade to
+        # the zero-cost template rather than erroring: a public demo that still
+        # renders is better than one that 500s, and the episode is still marked
+        # with its provider so the degradation is visible rather than silent.
+        if not llm_allowed():
+            logger.warning("LLM disabled (budget); using demo scriptwriter")
+            return self._fallback(candidate, retrieved_chunks, audience_topics), "demo-budget"
 
         # Preference order: explicit override, bedrock, anthropic, openai, demo.
         if self.provider == "bedrock" and self.bedrock_creds:
@@ -105,46 +139,74 @@ class ScriptWriter:
 
     def _call_anthropic(self, prompt: str) -> str:
         start = time.time()
-        result = post_json(
-            provider="anthropic",
-            url="https://api.anthropic.com/v1/messages",
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": self.anthropic_key,
-                "anthropic-version": "2023-06-01",
-            },
-            body={
-                "model": "claude-sonnet-4-6",
-                "max_tokens": 2400,
-                "system": SYSTEM_PROMPT,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=90,
-        )
-        record_success("script:anthropic", latency_ms=int((time.time() - start) * 1000))
-        return result["content"][0]["text"].strip()
+        try:
+            result = post_json(
+                provider="anthropic",
+                url="https://api.anthropic.com/v1/messages",
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": self.anthropic_key,
+                    "anthropic-version": "2023-06-01",
+                },
+                body={
+                    "model": ANTHROPIC_MODEL,
+                    "max_tokens": 2400,
+                    "system": SYSTEM_PROMPT,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+                timeout=90,
+            )
+        except ProviderError as exc:
+            record(LLMCall(
+                purpose="script", provider="anthropic", model=ANTHROPIC_MODEL,
+                latency_ms=int((time.time() - start) * 1000),
+                ok=False, status=exc.status, error=exc.detail[:300],
+            ))
+            raise
+
+        latency_ms = int((time.time() - start) * 1000)
+        record(LLMCall(
+            purpose="script", provider="anthropic", model=ANTHROPIC_MODEL,
+            latency_ms=latency_ms, **anthropic_usage(result),
+        ))
+        record_success("script:anthropic", latency_ms=latency_ms)
+        return _extract_text(result, "anthropic")
 
     def _call_openai(self, prompt: str) -> str:
         start = time.time()
-        result = post_json(
-            provider="openai",
-            url="https://api.openai.com/v1/chat/completions",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.openai_key}",
-            },
-            body={
-                "model": "gpt-4o-mini",
-                "max_tokens": 2400,
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-            },
-            timeout=90,
-        )
-        record_success("script:openai", latency_ms=int((time.time() - start) * 1000))
-        return result["choices"][0]["message"]["content"].strip()
+        try:
+            result = post_json(
+                provider="openai",
+                url="https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.openai_key}",
+                },
+                body={
+                    "model": OPENAI_MODEL,
+                    "max_tokens": 2400,
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                },
+                timeout=90,
+            )
+        except ProviderError as exc:
+            record(LLMCall(
+                purpose="script", provider="openai", model=OPENAI_MODEL,
+                latency_ms=int((time.time() - start) * 1000),
+                ok=False, status=exc.status, error=exc.detail[:300],
+            ))
+            raise
+
+        latency_ms = int((time.time() - start) * 1000)
+        record(LLMCall(
+            purpose="script", provider="openai", model=OPENAI_MODEL,
+            latency_ms=latency_ms, **openai_usage(result),
+        ))
+        record_success("script:openai", latency_ms=latency_ms)
+        return _extract_text(result, "openai")
 
     def _fallback(
         self,

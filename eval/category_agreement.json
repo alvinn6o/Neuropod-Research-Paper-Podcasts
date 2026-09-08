@@ -1,0 +1,48 @@
+{
+  "topic_categories": {
+    "llm": [
+      "cs.CL"
+    ],
+    "vision": [
+      "cs.CV",
+      "eess.IV"
+    ],
+    "rl": [
+      "cs.RO"
+    ],
+    "graph": [
+      "cs.SI"
+    ],
+    "theory": [
+      "cs.IT",
+      "math.NA",
+      "math.OC",
+      "math.ST",
+      "stat.ME",
+      "stat.ML"
+    ]
+  },
+  "per_topic": {
+    "llm": {
+      "kappa_llm_vs_category": 0.8306997742663657,
+      "coverage": 0.5333333333333333
+    },
+    "vision": {
+      "kappa_llm_vs_category": 0.8255813953488371,
+      "coverage": 0.5833333333333334
+    },
+    "rl": {
+      "kappa_llm_vs_category": 0.13851351351351357,
+      "coverage": 0.03333333333333333
+    },
+    "graph": {
+      "kappa_llm_vs_category": 0.10550458715596288,
+      "coverage": 0.016666666666666666
+    },
+    "theory": {
+      "kappa_llm_vs_category": 0.8008849557522124,
+      "coverage": 0.4666666666666667
+    }
+  },
+  "overall_llm_vs_category": 0.6860782529572339
+}
